@@ -197,7 +197,7 @@ final class Repository {
 				'posts_per_page'         => -1,
 				'orderby'                => 'modified',
 				'order'                  => 'DESC',
-				'meta_key'               => self::CSS_META,
+				'meta_key'               => self::CSS_META, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- The override meta key defines this query.
 				'meta_compare'           => 'EXISTS',
 				'no_found_rows'          => true,
 				'update_post_term_cache' => false,

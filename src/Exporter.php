@@ -13,6 +13,7 @@ final class Exporter {
 	/**
 	 * Build valid CSS while retaining page scope as migration metadata.
 	 *
+	 * @param string                                              $global_css Global CSS.
 	 * @param array<int, array{id:int, title:string, css:string}> $pages Page sections.
 	 */
 	public function build( string $global_css, array $pages ): string {

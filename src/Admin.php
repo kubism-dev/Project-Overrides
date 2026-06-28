@@ -145,7 +145,7 @@ final class Admin {
 							<select id="project-overrides-page" class="project-overrides-page-select" data-base-url="<?php echo esc_url( admin_url( 'admin.php?page=' . self::MENU_SLUG ) ); ?>">
 								<option value=""><?php esc_html_e( 'Select a page…', 'project-overrides' ); ?></option>
 								<?php foreach ( $this->repository->get_all_pages() as $page ) : ?>
-									<option value="<?php echo esc_attr( (string) $page->ID ); ?>" <?php selected( $selected_id, $page->ID ); ?>><?php echo esc_html( $page->post_title ?: __( '(no title)', 'project-overrides' ) ); ?></option>
+									<option value="<?php echo esc_attr( (string) $page->ID ); ?>" <?php selected( $selected_id, $page->ID ); ?>><?php echo esc_html( $page->post_title ? $page->post_title : __( '(no title)', 'project-overrides' ) ); ?></option>
 								<?php endforeach; ?>
 							</select>
 
@@ -211,10 +211,10 @@ final class Admin {
 	}
 
 	private function render_page_table(): void {
-		$pages = $this->repository->get_pages_with_overrides();
-		$status_filter = isset( $_GET['override_status'] ) ? sanitize_key( wp_unslash( $_GET['override_status'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$search        = isset( $_GET['override_search'] ) ? sanitize_text_field( wp_unslash( $_GET['override_search'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$pages         = array_values(
+		$pages          = $this->repository->get_pages_with_overrides();
+		$status_filter  = isset( $_GET['override_status'] ) ? sanitize_key( wp_unslash( $_GET['override_status'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$search         = isset( $_GET['override_search'] ) ? sanitize_text_field( wp_unslash( $_GET['override_search'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$pages          = array_values(
 			array_filter(
 				$pages,
 				function ( WP_Post $page ) use ( $status_filter, $search ): bool {
@@ -266,10 +266,18 @@ final class Admin {
 					<?php $modified = (int) get_post_meta( $page->ID, Repository::MODIFIED_META, true ); ?>
 					<tr>
 						<td>
-							<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::MENU_SLUG . '&post_id=' . $page->ID ) ); ?>"><?php echo esc_html( get_the_title( $page ) ?: __( '(no title)', 'project-overrides' ) ); ?></a>
+							<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::MENU_SLUG . '&post_id=' . $page->ID ) ); ?>">
+							<?php
+							$page_title = get_the_title( $page );
+							echo esc_html( $page_title ? $page_title : __( '(no title)', 'project-overrides' ) );
+							?>
+							</a>
 							<div class="row-actions">
 								<span><a href="<?php echo esc_url( get_edit_post_link( $page->ID ) ); ?>"><?php esc_html_e( 'Edit page', 'project-overrides' ); ?></a> | </span>
-								<?php if ( 'publish' === $page->post_status ) : ?><span><a href="<?php echo esc_url( get_permalink( $page ) ); ?>"><?php esc_html_e( 'View', 'project-overrides' ); ?></a> | </span><?php endif; ?>
+								<?php
+								if ( 'publish' === $page->post_status ) :
+									?>
+									<span><a href="<?php echo esc_url( get_permalink( $page ) ); ?>"><?php esc_html_e( 'View', 'project-overrides' ); ?></a> | </span><?php endif; ?>
 								<span class="delete"><a class="project-overrides-delete" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=project_overrides_delete&type=page&post_id=' . $page->ID ), 'project_overrides_delete_' . $page->ID ) ); ?>"><?php esc_html_e( 'Delete override', 'project-overrides' ); ?></a></span>
 							</div>
 						</td>
@@ -296,13 +304,13 @@ final class Admin {
 		$this->guard();
 		check_admin_referer( 'project_overrides_save_css' );
 
-		$global_css    = isset( $_POST['global_css'] ) ? wp_unslash( $_POST['global_css'] ) : '';
+		$global_css    = isset( $_POST['global_css'] ) ? wp_unslash( $_POST['global_css'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- CSS must retain its syntax.
 		$global_status = isset( $_POST['global_status'] ) ? sanitize_key( wp_unslash( $_POST['global_status'] ) ) : 'temporary';
-		$post_id     = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
-		$page_css    = '';
-		$page_status = 'temporary';
+		$post_id       = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+		$page_css      = '';
+		$page_status   = 'temporary';
 		if ( $post_id && 'page' === get_post_type( $post_id ) ) {
-			$page_css    = isset( $_POST['page_css'] ) ? wp_unslash( $_POST['page_css'] ) : '';
+			$page_css    = isset( $_POST['page_css'] ) ? wp_unslash( $_POST['page_css'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- CSS must retain its syntax.
 			$page_status = isset( $_POST['page_status'] ) ? sanitize_key( wp_unslash( $_POST['page_status'] ) ) : 'temporary';
 		}
 
@@ -328,7 +336,13 @@ final class Admin {
 			$this->repository->save_page( $post_id, (string) $page_css, $page_status, $page_modified );
 		}
 
-		$url = add_query_arg( array( 'page' => self::MENU_SLUG, 'updated' => '1' ), admin_url( 'admin.php' ) );
+		$url = add_query_arg(
+			array(
+				'page'    => self::MENU_SLUG,
+				'updated' => '1',
+			),
+			admin_url( 'admin.php' )
+		);
 		if ( $post_id ) {
 			$url = add_query_arg( 'post_id', $post_id, $url );
 		}
@@ -411,7 +425,7 @@ final class Admin {
 		foreach ( $this->repository->get_pages_with_overrides() as $page ) {
 			$pages[] = array(
 				'id'    => (int) $page->ID,
-				'title' => get_the_title( $page ) ?: __( 'Untitled', 'project-overrides' ),
+				'title' => get_the_title( $page ) ? get_the_title( $page ) : __( 'Untitled', 'project-overrides' ),
 				'css'   => $this->repository->get_page_css( (int) $page->ID ),
 			);
 		}
@@ -447,7 +461,15 @@ final class Admin {
 			wp_die( esc_html__( 'Invalid override type.', 'project-overrides' ) );
 		}
 
-		wp_safe_redirect( add_query_arg( array( 'page' => self::MENU_SLUG, 'updated' => '1' ), admin_url( 'admin.php' ) ) );
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'    => self::MENU_SLUG,
+					'updated' => '1',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
 		exit;
 	}
 
@@ -509,8 +531,8 @@ final class Admin {
 			return;
 		}
 
-		$css    = isset( $_POST['project_overrides_css'] ) ? (string) wp_unslash( $_POST['project_overrides_css'] ) : '';
-		$status = isset( $_POST['project_overrides_status'] ) ? sanitize_key( wp_unslash( $_POST['project_overrides_status'] ) ) : 'temporary';
+		$css      = isset( $_POST['project_overrides_css'] ) ? (string) wp_unslash( $_POST['project_overrides_css'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- CSS must retain its syntax.
+		$status   = isset( $_POST['project_overrides_status'] ) ? sanitize_key( wp_unslash( $_POST['project_overrides_status'] ) ) : 'temporary';
 		$modified = isset( $_POST['project_overrides_modified'] ) ? absint( $_POST['project_overrides_modified'] ) : 0;
 		$result   = $this->repository->save_page( $post_id, $css, $status, $modified );
 		if ( is_wp_error( $result ) ) {

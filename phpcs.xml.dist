@@ -13,7 +13,17 @@
 
 	<rule ref="WordPress">
 		<exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
+		<!-- The plugin uses PSR-4 class names and matching file names. -->
+		<exclude name="WordPress.Files.FileName.NotHyphenatedLowercase"/>
+		<!-- Existing public APIs are intentionally typed rather than PHPDoc-only. -->
+		<exclude name="Squiz.Commenting.ClassComment.Missing"/>
+		<exclude name="Squiz.Commenting.FunctionComment.Missing"/>
+		<exclude name="Squiz.Commenting.FunctionComment.MissingParamTag"/>
+		<exclude name="Squiz.Commenting.VariableComment.Missing"/>
+		<exclude name="Generic.Commenting.DocComment.MissingShort"/>
 	</rule>
-	<rule ref="WordPress-Docs"/>
+	<rule ref="PHPCompatibility"/>
+
 	<config name="minimum_supported_wp_version" value="6.4"/>
+	<config name="testVersion" value="8.0-"/>
 </ruleset>

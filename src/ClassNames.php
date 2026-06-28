@@ -24,7 +24,7 @@ final class ClassNames {
 			$file      = realpath( trailingslashit( get_stylesheet_directory() ) . ltrim( $path, '/\\' ) );
 
 			if ( false !== $theme_dir && false !== $file && str_starts_with( wp_normalize_path( $file ), trailingslashit( wp_normalize_path( $theme_dir ) ) ) && is_readable( $file ) && 'json' === strtolower( pathinfo( $file, PATHINFO_EXTENSION ) ) ) {
-				$decoded = json_decode( (string) file_get_contents( $file ), true );
+				$decoded = json_decode( (string) file_get_contents( $file ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Validated local JSON file.
 				if ( is_array( $decoded ) ) {
 					$classes = $decoded;
 				}
@@ -42,12 +42,12 @@ final class ClassNames {
 			array_unique(
 				array_filter(
 					array_map(
-						static function ( $class ): string {
-							return ltrim( sanitize_html_class( (string) $class ), '.' );
+						static function ( $class_name ): string {
+							return ltrim( sanitize_html_class( (string) $class_name ), '.' );
 						},
 						is_array( $classes ) ? $classes : array()
 					),
-					static fn( string $class ): bool => str_starts_with( $class, 'c-' ) || str_starts_with( $class, 'o-' )
+					static fn( string $class_name ): bool => str_starts_with( $class_name, 'c-' ) || str_starts_with( $class_name, 'o-' )
 				)
 			)
 		);

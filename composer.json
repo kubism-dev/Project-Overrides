@@ -7,12 +7,17 @@
 		"php": ">=8.0"
 	},
 	"require-dev": {
-		"dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+		"automattic/vipwpcs": "^3.0",
+		"dealerdirect/phpcodesniffer-composer-installer": "^1.2",
+		"phpcompatibility/php-compatibility": "^9.3",
 		"phpunit/phpunit": "^9.6 || ^10.5",
-		"wp-coding-standards/wpcs": "^3.1"
+		"squizlabs/php_codesniffer": "^3.13",
+		"wp-coding-standards/wpcs": "^3.3"
 	},
 	"scripts": {
 		"lint": "phpcs",
+		"lint:fix": "phpcbf",
+		"phpcompat": "phpcs --standard=PHPCompatibility --runtime-set testVersion 8.0- project-overrides.php uninstall.php src",
 		"test": "phpunit"
 	},
 	"config": {
