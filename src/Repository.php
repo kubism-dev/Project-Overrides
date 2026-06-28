@@ -42,6 +42,8 @@ final class Repository {
 			'#expression\s*\(#i',
 			'#(?:^|[;{])\s*behavior\s*:#i',
 			'#-moz-binding\s*:#i',
+			'#@import\b#i',
+			'#url\s*\(\s*([\'"]?\s*)?(?:https?:)?//#i',
 		);
 
 		foreach ( $unsafe_patterns as $pattern ) {

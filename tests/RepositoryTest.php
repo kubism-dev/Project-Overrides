@@ -44,6 +44,9 @@ final class RepositoryTest extends TestCase {
 			'old expression' => array( 'p { width: expression(alert(1)); }' ),
 			'old behavior'   => array( '.x { behavior: url(test.htc); }' ),
 			'php tag'        => array( '<?php echo "no"; ?>' ),
+			'remote URL'     => array( '.x { background: url("https://tracker.example/pixel"); }' ),
+			'protocol URL'   => array( '.x { background: url(//tracker.example/pixel); }' ),
+			'remote import'  => array( '@import "https://tracker.example/styles.css";' ),
 		);
 	}
 

@@ -81,7 +81,7 @@ final class Admin {
 
 		$selected_id = isset( $_GET['post_id'] ) ? absint( $_GET['post_id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$selected    = $selected_id ? get_post( $selected_id ) : null;
-		if ( ! $selected instanceof WP_Post || 'page' !== $selected->post_type ) {
+		if ( ! $selected instanceof WP_Post || 'page' !== $selected->post_type || ! current_user_can( 'edit_post', $selected_id ) ) {
 			$selected_id = 0;
 			$selected    = null;
 		}
@@ -144,7 +144,7 @@ final class Admin {
 							<label for="project-overrides-page"><strong><?php esc_html_e( 'Page', 'project-overrides' ); ?></strong></label>
 							<select id="project-overrides-page" class="project-overrides-page-select" data-base-url="<?php echo esc_url( admin_url( 'admin.php?page=' . self::MENU_SLUG ) ); ?>">
 								<option value=""><?php esc_html_e( 'Select a page…', 'project-overrides' ); ?></option>
-								<?php foreach ( $this->repository->get_all_pages() as $page ) : ?>
+								<?php foreach ( $this->get_editable_pages() as $page ) : ?>
 									<option value="<?php echo esc_attr( (string) $page->ID ); ?>" <?php selected( $selected_id, $page->ID ); ?>><?php echo esc_html( $page->post_title ? $page->post_title : __( '(no title)', 'project-overrides' ) ); ?></option>
 								<?php endforeach; ?>
 							</select>
@@ -211,7 +211,12 @@ final class Admin {
 	}
 
 	private function render_page_table(): void {
-		$pages          = $this->repository->get_pages_with_overrides();
+		$pages          = array_values(
+			array_filter(
+				$this->repository->get_pages_with_overrides(),
+				static fn( WP_Post $page ): bool => current_user_can( 'edit_post', (int) $page->ID )
+			)
+		);
 		$status_filter  = isset( $_GET['override_status'] ) ? sanitize_key( wp_unslash( $_GET['override_status'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$search         = isset( $_GET['override_search'] ) ? sanitize_text_field( wp_unslash( $_GET['override_search'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$pages          = array_values(
@@ -253,7 +258,14 @@ final class Admin {
 						<td>
 							<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::MENU_SLUG ) ); ?>"><strong><?php esc_html_e( 'Global CSS', 'project-overrides' ); ?></strong></a>
 							<div class="row-actions">
-								<span class="delete"><a class="project-overrides-delete" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=project_overrides_delete&type=global' ), 'project_overrides_delete_global' ) ); ?>"><?php esc_html_e( 'Delete', 'project-overrides' ); ?></a></span>
+								<span class="delete">
+									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+										<input type="hidden" name="action" value="project_overrides_delete">
+										<input type="hidden" name="type" value="global">
+										<?php wp_nonce_field( 'project_overrides_delete_global' ); ?>
+										<button type="submit" class="button-link-delete project-overrides-delete"><?php esc_html_e( 'Delete', 'project-overrides' ); ?></button>
+									</form>
+								</span>
 							</div>
 						</td>
 						<td><?php echo esc_html( (string) $this->repository->line_count( $this->repository->get_global_css() ) ); ?></td>
@@ -278,7 +290,15 @@ final class Admin {
 								if ( 'publish' === $page->post_status ) :
 									?>
 									<span><a href="<?php echo esc_url( get_permalink( $page ) ); ?>"><?php esc_html_e( 'View', 'project-overrides' ); ?></a> | </span><?php endif; ?>
-								<span class="delete"><a class="project-overrides-delete" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=project_overrides_delete&type=page&post_id=' . $page->ID ), 'project_overrides_delete_' . $page->ID ) ); ?>"><?php esc_html_e( 'Delete override', 'project-overrides' ); ?></a></span>
+								<span class="delete">
+									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+										<input type="hidden" name="action" value="project_overrides_delete">
+										<input type="hidden" name="type" value="page">
+										<input type="hidden" name="post_id" value="<?php echo esc_attr( (string) $page->ID ); ?>">
+										<?php wp_nonce_field( 'project_overrides_delete_' . $page->ID ); ?>
+										<button type="submit" class="button-link-delete project-overrides-delete"><?php esc_html_e( 'Delete override', 'project-overrides' ); ?></button>
+									</form>
+								</span>
 							</div>
 						</td>
 						<td><?php echo esc_html( (string) $this->repository->line_count( $this->repository->get_page_css( (int) $page->ID ) ) ); ?></td>
@@ -310,6 +330,7 @@ final class Admin {
 		$page_css      = '';
 		$page_status   = 'temporary';
 		if ( $post_id && 'page' === get_post_type( $post_id ) ) {
+			$this->guard_page( $post_id );
 			$page_css    = isset( $_POST['page_css'] ) ? wp_unslash( $_POST['page_css'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- CSS must retain its syntax.
 			$page_status = isset( $_POST['page_status'] ) ? sanitize_key( wp_unslash( $_POST['page_status'] ) ) : 'temporary';
 		}
@@ -423,6 +444,9 @@ final class Admin {
 	private function build_export(): string {
 		$pages = array();
 		foreach ( $this->repository->get_pages_with_overrides() as $page ) {
+			if ( ! current_user_can( 'edit_post', (int) $page->ID ) ) {
+				continue;
+			}
 			$pages[] = array(
 				'id'    => (int) $page->ID,
 				'title' => get_the_title( $page ) ? get_the_title( $page ) : __( 'Untitled', 'project-overrides' ),
@@ -445,17 +469,18 @@ final class Admin {
 
 	public function delete_override(): void {
 		$this->guard();
-		$type = isset( $_GET['type'] ) ? sanitize_key( wp_unslash( $_GET['type'] ) ) : '';
+		$type = isset( $_POST['type'] ) ? sanitize_key( wp_unslash( $_POST['type'] ) ) : '';
 
 		if ( 'global' === $type ) {
 			check_admin_referer( 'project_overrides_delete_global' );
 			$this->repository->save_global( '', 'temporary' );
 		} elseif ( 'page' === $type ) {
-			$post_id = isset( $_GET['post_id'] ) ? absint( $_GET['post_id'] ) : 0;
+			$post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
 			check_admin_referer( 'project_overrides_delete_' . $post_id );
 			if ( ! $post_id || 'page' !== get_post_type( $post_id ) ) {
 				wp_die( esc_html__( 'Invalid page override.', 'project-overrides' ) );
 			}
+			$this->guard_page( $post_id );
 			$this->repository->save_page( $post_id, '', 'temporary' );
 		} else {
 			wp_die( esc_html__( 'Invalid override type.', 'project-overrides' ) );
@@ -527,7 +552,7 @@ final class Admin {
 		if ( ! isset( $_POST['project_overrides_meta_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['project_overrides_meta_nonce'] ) ), 'project_overrides_save_meta' ) ) {
 			return;
 		}
-		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) || ! current_user_can( self::CAPABILITY ) || 'page' !== $post->post_type ) {
+		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) || ! current_user_can( self::CAPABILITY ) || ! current_user_can( 'edit_post', $post_id ) || 'page' !== $post->post_type ) {
 			return;
 		}
 
@@ -572,6 +597,24 @@ final class Admin {
 	private function guard(): void {
 		if ( ! current_user_can( self::CAPABILITY ) ) {
 			wp_die( esc_html__( 'You are not allowed to manage project overrides.', 'project-overrides' ) );
+		}
+	}
+
+	/**
+	 * @return WP_Post[]
+	 */
+	private function get_editable_pages(): array {
+		return array_values(
+			array_filter(
+				$this->repository->get_all_pages(),
+				static fn( WP_Post $page ): bool => current_user_can( 'edit_post', (int) $page->ID )
+			)
+		);
+	}
+
+	private function guard_page( int $post_id ): void {
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_die( esc_html__( 'You are not allowed to edit this page override.', 'project-overrides' ), '', array( 'response' => 403 ) );
 		}
 	}
 }

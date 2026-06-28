@@ -205,3 +205,20 @@
 		position: static;
 	}
 }
+.project-overrides .row-actions form {
+	display: inline;
+}
+
+.project-overrides .row-actions .button-link-delete {
+	border: 0;
+	padding: 0;
+	background: transparent;
+	color: #b32d2e;
+	cursor: pointer;
+	font: inherit;
+}
+
+.project-overrides .row-actions .button-link-delete:hover,
+.project-overrides .row-actions .button-link-delete:focus {
+	color: #a00;
+}
