@@ -17,7 +17,12 @@ jobs:
           php-version: ${{ matrix.php }}
           coverage: none
           tools: composer:v2
-      - run: composer install --no-interaction --prefer-dist
+      # The lock file is resolved with PHPUnit 10 for modern PHP. Resolve the
+      # PHPUnit 9 branch declared in composer.json when testing PHP 8.0.
+      - if: matrix.php == '8.0'
+        run: composer update phpunit/phpunit --with phpunit/phpunit:^9.6 --with-all-dependencies --no-interaction --prefer-dist
+      - if: matrix.php != '8.0'
+        run: composer install --no-interaction --prefer-dist
       - run: composer lint
       - run: composer test
       - run: node --check assets/admin.js
