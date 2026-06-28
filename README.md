@@ -9,11 +9,6 @@ agencies and developers working with custom Gutenberg themes.
 
 It is not a page builder or visual CSS editor.
 
-> [!IMPORTANT]
-> Project Overrides is currently a proof of concept. It demonstrates the
-> intended workflow and architecture, but should be thoroughly tested in a
-> staging environment before use on a production site.
-
 ## Features
 
 - Global CSS loaded in the document `<head>`.
@@ -26,6 +21,9 @@ It is not a page builder or visual CSS editor.
 - Click-to-insert presets from the active theme's `theme.json`.
 - Optional `c-` and `o-` BEM class autocomplete.
 - Stale-edit protection when multiple administrators edit an override.
+- Bounded revision history with one-click rollback.
+- Reason/handoff notes and optional ticket links.
+- Selective migration exports with migrated and delete completion actions.
 - Administrator-only access with nonce-protected writes.
 
 ## Requirements
@@ -78,13 +76,18 @@ Every non-empty override is either:
 
 - **Temporary** — expected to be migrated back into the theme.
 - **Permanent** — intentionally retained by the plugin.
+- **Migrated** — retained for history and rollback, but no longer loaded on
+  the front end.
 
 The WordPress dashboard displays the number of temporary overrides that still
 need attention.
 
 ### Export
 
-**Project Overrides → Export** creates one migration-ready CSS document.
+**Project Overrides → Export** previews the complete migration-ready CSS
+document and lets you select individual overrides to download. After moving
+the selected CSS into the theme, mark those overrides as migrated to stop
+loading them while retaining their history, or explicitly delete them.
 Page-specific sections retain their authored CSS and include a comment such as:
 
 ```css
@@ -98,6 +101,20 @@ Page-specific sections retain their authored CSS and include a comment such as:
 
 Scope is represented as metadata rather than wrapping arbitrary CSS. This keeps
 existing selectors and at-rules syntactically valid.
+
+## Revision history and change metadata
+
+When an existing override changes, the previous CSS, status, reason, ticket,
+author ID, and modification time are stored as a revision. The latest 20
+revisions are retained for each global or page override.
+
+Use **Revision history** below the CSS editors to restore an earlier version.
+Restoring is itself revisioned, so the version being replaced remains
+recoverable.
+
+Each override also supports a short reason or handoff note and an optional
+ticket URL. This context appears in the override inventory and follows the
+override through revision restores.
 
 ## Theme tokens
 
@@ -161,12 +178,10 @@ Directory traversal outside that directory is rejected.
 - CSS is normalized and validated before storage.
 - HTML context breakouts, PHP tags, JavaScript URLs, and legacy executable CSS
   constructs are rejected.
+- Remote CSS URLs and `@import` rules are rejected.
 - Unclosed strings, comments, and CSS blocks are rejected.
 - No PHP or JavaScript override execution is supported.
 - Rejected CSS is preserved temporarily so it can be corrected.
-
-Administrators can still write CSS capable of making external network requests,
-such as `url()` and `@import`. This is intentional for a developer CSS tool.
 
 ## Data storage
 
@@ -174,8 +189,10 @@ such as `url()` and `@import`. This is intentional for a developer CSS tool.
 | --- | --- |
 | Global CSS | `project_overrides_global_css` option |
 | Global status | `project_overrides_global_status` option |
+| Global metadata and revisions | Dedicated `project_overrides_global_*` options |
 | Page CSS | `_project_overrides_css` post meta |
 | Page status | `_project_overrides_status` post meta |
+| Page metadata and revisions | Dedicated `_project_overrides_*` post meta |
 | Modification timestamps | Option or post meta |
 | BEM JSON path | `project_overrides_class_file` option |
 
@@ -201,10 +218,9 @@ tests/                  Isolated PHPUnit tests
 tools/build.ps1         Production ZIP builder
 ```
 
-The persistence, export, token, and interface responsibilities are separated so
-future features can be added without placing them in the MVP. JavaScript
-overrides, revision history, JSON import/export, pattern-specific overrides,
-Monaco, and theme synchronization are intentionally not implemented.
+The persistence, export, token, and interface responsibilities are separated.
+JavaScript overrides, JSON import/export, pattern-specific overrides, Monaco,
+and theme synchronization are intentionally not implemented.
 
 ## Development
 

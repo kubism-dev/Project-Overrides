@@ -143,6 +143,67 @@
 	color: #005c12;
 }
 
+.project-overrides__badge--migrated {
+	background: #e2e4e7;
+	color: #3c434a;
+}
+
+.project-overrides__metadata {
+	display: grid;
+	gap: 12px;
+	grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
+	margin-top: 14px;
+}
+
+.project-overrides__metadata p {
+	margin: 0;
+}
+
+.project-overrides__metadata label {
+	display: block;
+	margin-bottom: 5px;
+}
+
+.project-overrides__history-grid {
+	display: grid;
+	gap: 20px;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	margin-top: 20px;
+}
+
+.project-overrides__revisions {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	padding: 14px 18px;
+}
+
+.project-overrides__revisions summary {
+	cursor: pointer;
+	font-weight: 600;
+}
+
+.project-overrides__revisions ul {
+	margin: 14px 0 0;
+}
+
+.project-overrides__revisions li {
+	align-items: center;
+	border-top: 1px solid #dcdcde;
+	display: flex;
+	gap: 12px;
+	justify-content: space-between;
+	margin: 0;
+	padding: 10px 0;
+}
+
+.project-overrides__migration-list {
+	display: grid;
+	gap: 8px;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	margin: 18px 0;
+	max-width: 1100px;
+}
+
 .project-overrides__export-actions {
 	display: flex;
 	gap: 8px;
@@ -203,6 +264,11 @@
 
 	.project-overrides__tokens {
 		position: static;
+	}
+
+	.project-overrides__metadata,
+	.project-overrides__history-grid {
+		grid-template-columns: 1fr;
 	}
 }
 .project-overrides .row-actions form {

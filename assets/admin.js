@@ -141,6 +141,10 @@
 			dirty = false;
 		} );
 
+		$( '.project-overrides__metadata input' ).on( 'input', function () {
+			dirty = true;
+		} );
+
 		$( '.project-overrides-delete' ).on( 'click', function ( event ) {
 			if ( ! window.confirm( window.projectOverrides.confirmDelete ) ) {
 				event.preventDefault();

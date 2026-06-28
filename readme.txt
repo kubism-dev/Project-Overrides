@@ -3,7 +3,7 @@ Contributors: projectoverrides
 Tags: css, developer, gutenberg, theme, overrides
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,10 +20,17 @@ that is not ready to migrate into a custom theme. It provides:
 * A combined copyable and downloadable CSS export.
 * Click-to-insert theme.json preset variables.
 * Optional BEM class autocomplete from a theme JSON file or PHP filter.
+* Revision history with rollback.
+* Reason notes and optional ticket URLs.
+* Selective migration export and inactive migrated status.
 
 Only administrators can edit overrides. The plugin does not execute PHP or
 JavaScript. Context-breaking markup and legacy executable CSS constructs are
 rejected with an error while preserving the submitted draft.
+
+Existing overrides keep their latest 20 revisions. A restored revision also
+preserves the version it replaces. Migrated overrides remain available for
+review and rollback but are not output on the front end.
 
 == BEM autocomplete ==
 
@@ -49,6 +56,10 @@ Run `composer lint` and `composer test` before packaging. On Windows,
 only.
 
 == Changelog ==
+
+= 1.1.0 =
+* Added revision history, rollback, change metadata, and migration workflow.
+* Hardened permissions, destructive actions, and remote CSS validation.
 
 = 1.0.0 =
 * Initial release.

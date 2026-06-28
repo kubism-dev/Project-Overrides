@@ -17,8 +17,9 @@ final class Frontend {
 	}
 
 	public function output_css(): void {
-		$global = trim( $this->repository->get_global_css() );
-		$page   = is_page() ? trim( $this->repository->get_page_css( (int) get_queried_object_id() ) ) : '';
+		$global  = 'migrated' === $this->repository->get_global_status() ? '' : trim( $this->repository->get_global_css() );
+		$page_id = is_page() ? (int) get_queried_object_id() : 0;
+		$page    = $page_id && 'migrated' !== $this->repository->get_page_status( $page_id ) ? trim( $this->repository->get_page_css( $page_id ) ) : '';
 
 		if ( '' === $global && '' === $page ) {
 			return;

@@ -28,6 +28,8 @@ final class Admin {
 		add_action( 'admin_post_project_overrides_save_css', array( $this, 'save_css_page' ) );
 		add_action( 'admin_post_project_overrides_download', array( $this, 'download_export' ) );
 		add_action( 'admin_post_project_overrides_delete', array( $this, 'delete_override' ) );
+		add_action( 'admin_post_project_overrides_rollback', array( $this, 'rollback_override' ) );
+		add_action( 'admin_post_project_overrides_migrate', array( $this, 'migration_action' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		add_action( 'add_meta_boxes_page', array( $this, 'add_meta_box' ) );
 		add_action( 'save_post_page', array( $this, 'save_meta_box' ), 10, 2 );
@@ -92,6 +94,10 @@ final class Admin {
 		$global_status   = isset( $draft['global_status'] ) ? (string) $draft['global_status'] : $this->repository->get_global_status();
 		$page_css        = $selected && isset( $draft['page_css'] ) ? (string) $draft['page_css'] : ( $selected ? $this->repository->get_page_css( $selected_id ) : '' );
 		$page_status     = $selected && isset( $draft['page_status'] ) ? (string) $draft['page_status'] : ( $selected ? $this->repository->get_page_status( $selected_id ) : 'temporary' );
+		$global_reason   = isset( $draft['global_reason'] ) ? (string) $draft['global_reason'] : $this->repository->get_global_reason();
+		$global_ticket   = isset( $draft['global_ticket'] ) ? (string) $draft['global_ticket'] : $this->repository->get_global_ticket();
+		$page_reason     = $selected && isset( $draft['page_reason'] ) ? (string) $draft['page_reason'] : ( $selected ? $this->repository->get_page_reason( $selected_id ) : '' );
+		$page_ticket     = $selected && isset( $draft['page_ticket'] ) ? (string) $draft['page_ticket'] : ( $selected ? $this->repository->get_page_ticket( $selected_id ) : '' );
 		?>
 		<div class="wrap project-overrides">
 			<h1><?php esc_html_e( 'Project Overrides', 'project-overrides' ); ?></h1>
@@ -128,6 +134,7 @@ final class Admin {
 								<?php $this->render_status( 'global_status', $global_status ); ?>
 							</div>
 							<textarea id="project-overrides-global" class="project-overrides-editor" name="global_css" rows="16"><?php echo esc_textarea( $global_css ); ?></textarea>
+							<?php $this->render_metadata_fields( 'global', $global_reason, $global_ticket ); ?>
 						</section>
 
 						<section class="project-overrides__panel">
@@ -153,6 +160,7 @@ final class Admin {
 								<input type="hidden" name="post_id" value="<?php echo esc_attr( (string) $selected_id ); ?>">
 								<input type="hidden" name="page_modified" value="<?php echo esc_attr( (string) $this->repository->get_page_modified( $selected_id ) ); ?>">
 								<textarea id="project-overrides-page-css" class="project-overrides-editor" name="page_css" rows="16"><?php echo esc_textarea( $page_css ); ?></textarea>
+								<?php $this->render_metadata_fields( 'page', $page_reason, $page_ticket ); ?>
 							<?php else : ?>
 								<div class="project-overrides__empty"><?php esc_html_e( 'Select a page to edit its override.', 'project-overrides' ); ?></div>
 							<?php endif; ?>
@@ -164,6 +172,12 @@ final class Admin {
 				<?php submit_button( __( 'Save CSS', 'project-overrides' ) ); ?>
 			</form>
 
+			<div class="project-overrides__history-grid">
+				<?php $this->render_revisions( 'global', 0, $this->repository->get_global_revisions() ); ?>
+				<?php if ( $selected ) : ?>
+					<?php $this->render_revisions( 'page', $selected_id, $this->repository->get_page_revisions( $selected_id ) ); ?>
+				<?php endif; ?>
+			</div>
 			<?php $this->render_page_table(); ?>
 		</div>
 		<?php
@@ -176,8 +190,77 @@ final class Admin {
 			<select name="<?php echo esc_attr( $name ); ?>">
 				<option value="temporary" <?php selected( $value, 'temporary' ); ?>><?php esc_html_e( 'Temporary', 'project-overrides' ); ?></option>
 				<option value="permanent" <?php selected( $value, 'permanent' ); ?>><?php esc_html_e( 'Permanent', 'project-overrides' ); ?></option>
+				<option value="migrated" <?php selected( $value, 'migrated' ); ?>><?php esc_html_e( 'Migrated (inactive)', 'project-overrides' ); ?></option>
 			</select>
 		</label>
+		<?php
+	}
+
+	private function render_metadata_fields( string $prefix, string $reason, string $ticket ): void {
+		?>
+		<div class="project-overrides__metadata">
+			<p>
+				<label for="project-overrides-<?php echo esc_attr( $prefix ); ?>-reason"><strong><?php esc_html_e( 'Reason / handoff note', 'project-overrides' ); ?></strong></label>
+				<input id="project-overrides-<?php echo esc_attr( $prefix ); ?>-reason" type="text" class="widefat" name="<?php echo esc_attr( $prefix ); ?>_reason" value="<?php echo esc_attr( $reason ); ?>" maxlength="500">
+			</p>
+			<p>
+				<label for="project-overrides-<?php echo esc_attr( $prefix ); ?>-ticket"><strong><?php esc_html_e( 'Ticket URL', 'project-overrides' ); ?></strong></label>
+				<input id="project-overrides-<?php echo esc_attr( $prefix ); ?>-ticket" type="url" class="widefat" name="<?php echo esc_attr( $prefix ); ?>_ticket" value="<?php echo esc_attr( $ticket ); ?>" placeholder="https://">
+			</p>
+		</div>
+		<?php
+	}
+
+	/**
+	 * @param string                           $type      Override type.
+	 * @param int                              $post_id   Page ID for page revisions.
+	 * @param array<int, array<string, mixed>> $revisions Revisions.
+	 */
+	private function render_revisions( string $type, int $post_id, array $revisions ): void {
+		if ( ! $revisions ) {
+			return;
+		}
+		?>
+		<details class="project-overrides__revisions">
+			<summary>
+				<?php
+				/* translators: %d: Number of stored revisions. */
+				printf( esc_html__( 'Revision history (%d)', 'project-overrides' ), count( $revisions ) );
+				?>
+			</summary>
+			<ul>
+				<?php foreach ( $revisions as $revision ) : ?>
+					<li>
+						<span>
+							<?php
+							$modified = isset( $revision['modified'] ) ? (int) $revision['modified'] : 0;
+							echo esc_html( $modified ? wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $modified ) : __( 'Unknown date', 'project-overrides' ) );
+							?>
+							&middot;
+							<?php echo esc_html( (string) ( $revision['status'] ?? 'temporary' ) ); ?>
+							&middot;
+							<?php
+							$author = isset( $revision['author'] ) ? get_userdata( (int) $revision['author'] ) : false;
+							echo esc_html( $author ? $author->display_name : __( 'Unknown author', 'project-overrides' ) );
+							?>
+							&middot;
+							<?php
+							/* translators: %d: Number of lines in a CSS revision. */
+							echo esc_html( sprintf( __( '%d lines', 'project-overrides' ), $this->repository->line_count( (string) ( $revision['css'] ?? '' ) ) ) );
+							?>
+						</span>
+						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+							<input type="hidden" name="action" value="project_overrides_rollback">
+							<input type="hidden" name="type" value="<?php echo esc_attr( $type ); ?>">
+							<input type="hidden" name="post_id" value="<?php echo esc_attr( (string) $post_id ); ?>">
+							<input type="hidden" name="revision_id" value="<?php echo esc_attr( (string) ( $revision['id'] ?? '' ) ); ?>">
+							<?php wp_nonce_field( 'project_overrides_rollback_' . $type . '_' . (string) ( $revision['id'] ?? '' ) ); ?>
+							<button type="submit" class="button button-small"><?php esc_html_e( 'Restore', 'project-overrides' ); ?></button>
+						</form>
+					</li>
+				<?php endforeach; ?>
+			</ul>
+		</details>
 		<?php
 	}
 
@@ -244,6 +327,7 @@ final class Admin {
 					<option value=""><?php esc_html_e( 'All statuses', 'project-overrides' ); ?></option>
 					<option value="temporary" <?php selected( $status_filter, 'temporary' ); ?>><?php esc_html_e( 'Temporary only', 'project-overrides' ); ?></option>
 					<option value="permanent" <?php selected( $status_filter, 'permanent' ); ?>><?php esc_html_e( 'Permanent only', 'project-overrides' ); ?></option>
+					<option value="migrated" <?php selected( $status_filter, 'migrated' ); ?>><?php esc_html_e( 'Migrated only', 'project-overrides' ); ?></option>
 				</select>
 				<button class="button" type="submit"><?php esc_html_e( 'Filter', 'project-overrides' ); ?></button>
 				<?php if ( '' !== $search || '' !== $status_filter ) : ?>
@@ -257,6 +341,7 @@ final class Admin {
 					<tr>
 						<td>
 							<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::MENU_SLUG ) ); ?>"><strong><?php esc_html_e( 'Global CSS', 'project-overrides' ); ?></strong></a>
+							<?php $this->render_metadata_summary( $this->repository->get_global_reason(), $this->repository->get_global_ticket() ); ?>
 							<div class="row-actions">
 								<span class="delete">
 									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -284,6 +369,7 @@ final class Admin {
 							echo esc_html( $page_title ? $page_title : __( '(no title)', 'project-overrides' ) );
 							?>
 							</a>
+							<?php $this->render_metadata_summary( $this->repository->get_page_reason( (int) $page->ID ), $this->repository->get_page_ticket( (int) $page->ID ) ); ?>
 							<div class="row-actions">
 								<span><a href="<?php echo esc_url( get_edit_post_link( $page->ID ) ); ?>"><?php esc_html_e( 'Edit page', 'project-overrides' ); ?></a> | </span>
 								<?php
@@ -316,8 +402,31 @@ final class Admin {
 	}
 
 	private function render_status_badge( string $status ): void {
-		$label = 'permanent' === $status ? __( 'Permanent', 'project-overrides' ) : __( 'Temporary', 'project-overrides' );
+		$labels = array(
+			'temporary' => __( 'Temporary', 'project-overrides' ),
+			'permanent' => __( 'Permanent', 'project-overrides' ),
+			'migrated'  => __( 'Migrated', 'project-overrides' ),
+		);
+		$label  = $labels[ $status ] ?? $labels['temporary'];
 		printf( '<span class="project-overrides__badge project-overrides__badge--%1$s">%2$s</span>', esc_attr( $status ), esc_html( $label ) );
+	}
+
+	private function render_metadata_summary( string $reason, string $ticket ): void {
+		if ( '' === $reason && '' === $ticket ) {
+			return;
+		}
+		?>
+		<div class="description">
+			<?php echo esc_html( $reason ); ?>
+			<?php if ( '' !== $ticket ) : ?>
+				<?php
+				if ( '' !== $reason ) :
+					?>
+					&middot;<?php endif; ?>
+				<a href="<?php echo esc_url( $ticket ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Ticket', 'project-overrides' ); ?></a>
+			<?php endif; ?>
+		</div>
+		<?php
 	}
 
 	public function save_css_page(): void {
@@ -326,13 +435,19 @@ final class Admin {
 
 		$global_css    = isset( $_POST['global_css'] ) ? wp_unslash( $_POST['global_css'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- CSS must retain its syntax.
 		$global_status = isset( $_POST['global_status'] ) ? sanitize_key( wp_unslash( $_POST['global_status'] ) ) : 'temporary';
+		$global_reason = isset( $_POST['global_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['global_reason'] ) ) : '';
+		$global_ticket = isset( $_POST['global_ticket'] ) ? esc_url_raw( wp_unslash( $_POST['global_ticket'] ) ) : '';
 		$post_id       = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
 		$page_css      = '';
 		$page_status   = 'temporary';
+		$page_reason   = '';
+		$page_ticket   = '';
 		if ( $post_id && 'page' === get_post_type( $post_id ) ) {
 			$this->guard_page( $post_id );
 			$page_css    = isset( $_POST['page_css'] ) ? wp_unslash( $_POST['page_css'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- CSS must retain its syntax.
 			$page_status = isset( $_POST['page_status'] ) ? sanitize_key( wp_unslash( $_POST['page_status'] ) ) : 'temporary';
+			$page_reason = isset( $_POST['page_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['page_reason'] ) ) : '';
+			$page_ticket = isset( $_POST['page_ticket'] ) ? esc_url_raw( wp_unslash( $_POST['page_ticket'] ) ) : '';
 		}
 
 		$global_modified = isset( $_POST['global_modified'] ) ? absint( $_POST['global_modified'] ) : 0;
@@ -347,14 +462,18 @@ final class Admin {
 					'global_status' => $global_status,
 					'page_css'      => (string) $page_css,
 					'page_status'   => $page_status,
+					'global_reason' => $global_reason,
+					'global_ticket' => $global_ticket,
+					'page_reason'   => $page_reason,
+					'page_ticket'   => $page_ticket,
 				)
 			);
 			$this->redirect_to_css_page( $post_id );
 		}
 
-		$this->repository->save_global( (string) $global_css, $global_status, $global_modified );
+		$this->repository->save_global( (string) $global_css, $global_status, $global_modified, $global_reason, $global_ticket );
 		if ( $post_id && 'page' === get_post_type( $post_id ) ) {
-			$this->repository->save_page( $post_id, (string) $page_css, $page_status, $page_modified );
+			$this->repository->save_page( $post_id, (string) $page_css, $page_status, $page_modified, $page_reason, $page_ticket );
 		}
 
 		$url = add_query_arg(
@@ -428,23 +547,52 @@ final class Admin {
 	public function render_export_page(): void {
 		$this->guard();
 		$export = $this->build_export();
+		$pages  = array_filter(
+			$this->repository->get_pages_with_overrides(),
+			static fn( WP_Post $page ): bool => current_user_can( 'edit_post', (int) $page->ID )
+		);
 		?>
 		<div class="wrap project-overrides">
 			<h1><?php esc_html_e( 'Export CSS', 'project-overrides' ); ?></h1>
-			<p><?php esc_html_e( 'A migration-ready bundle of the global and page-specific overrides.', 'project-overrides' ); ?></p>
-			<div class="project-overrides__export-actions">
-				<button type="button" class="button button-primary project-overrides-copy" data-target="project-overrides-export"><?php esc_html_e( 'Copy to clipboard', 'project-overrides' ); ?></button>
-				<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=project_overrides_download' ), 'project_overrides_download' ) ); ?>"><?php esc_html_e( 'Download CSS', 'project-overrides' ); ?></a>
-			</div>
+			<?php if ( isset( $_GET['updated'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+				<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Migration state updated.', 'project-overrides' ); ?></p></div>
+			<?php endif; ?>
+			<p><?php esc_html_e( 'Select overrides for migration. Migrated overrides remain stored and revisioned, but are no longer emitted on the front end.', 'project-overrides' ); ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="project_overrides_migrate">
+				<?php wp_nonce_field( 'project_overrides_migrate' ); ?>
+				<fieldset class="project-overrides__migration-list">
+					<legend class="screen-reader-text"><?php esc_html_e( 'Overrides to migrate', 'project-overrides' ); ?></legend>
+					<?php if ( '' !== trim( $this->repository->get_global_css() ) ) : ?>
+						<label><input type="checkbox" name="selected[]" value="global"> <?php esc_html_e( 'Global CSS', 'project-overrides' ); ?></label>
+					<?php endif; ?>
+					<?php foreach ( $pages as $page ) : ?>
+						<?php $page_title = get_the_title( $page ); ?>
+						<label><input type="checkbox" name="selected[]" value="page:<?php echo esc_attr( (string) $page->ID ); ?>"> <?php echo esc_html( $page_title ? $page_title : __( '(no title)', 'project-overrides' ) ); ?></label>
+					<?php endforeach; ?>
+				</fieldset>
+				<div class="project-overrides__export-actions">
+					<button type="button" class="button project-overrides-copy" data-target="project-overrides-export"><?php esc_html_e( 'Copy complete export', 'project-overrides' ); ?></button>
+					<button type="submit" class="button button-primary" name="operation" value="download"><?php esc_html_e( 'Download selected', 'project-overrides' ); ?></button>
+					<button type="submit" class="button" name="operation" value="mark"><?php esc_html_e( 'Mark selected migrated', 'project-overrides' ); ?></button>
+					<button type="submit" class="button button-link-delete project-overrides-delete" name="operation" value="delete"><?php esc_html_e( 'Delete selected', 'project-overrides' ); ?></button>
+				</div>
+			</form>
 			<textarea id="project-overrides-export" class="project-overrides-editor project-overrides-editor--readonly" rows="30" readonly><?php echo esc_textarea( $export ); ?></textarea>
 		</div>
 		<?php
 	}
 
-	private function build_export(): string {
+	/**
+	 * @param string[]|null $selected Selection keys, or null for all.
+	 */
+	private function build_export( ?array $selected = null ): string {
 		$pages = array();
 		foreach ( $this->repository->get_pages_with_overrides() as $page ) {
 			if ( ! current_user_can( 'edit_post', (int) $page->ID ) ) {
+				continue;
+			}
+			if ( null !== $selected && ! in_array( 'page:' . $page->ID, $selected, true ) ) {
 				continue;
 			}
 			$pages[] = array(
@@ -454,7 +602,8 @@ final class Admin {
 			);
 		}
 
-		return $this->exporter->build( $this->repository->get_global_css(), $pages );
+		$global = null === $selected || in_array( 'global', $selected, true ) ? $this->repository->get_global_css() : '';
+		return $this->exporter->build( $global, $pages );
 	}
 
 	public function download_export(): void {
@@ -465,6 +614,111 @@ final class Admin {
 		header( 'Content-Disposition: attachment; filename="project-overrides-' . gmdate( 'Y-m-d' ) . '.css"' );
 		echo $this->build_export(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- CSS download, sanitized on storage.
 		exit;
+	}
+
+	public function migration_action(): void {
+		$this->guard();
+		check_admin_referer( 'project_overrides_migrate' );
+
+		$operation = isset( $_POST['operation'] ) ? sanitize_key( wp_unslash( $_POST['operation'] ) ) : '';
+		$selected  = array();
+		$submitted = isset( $_POST['selected'] ) ? wp_unslash( $_POST['selected'] ) : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Each scalar value is sanitized below.
+		if ( is_array( $submitted ) ) {
+			foreach ( $submitted as $selection ) {
+				if ( is_string( $selection ) ) {
+					$selected[] = sanitize_text_field( $selection );
+				}
+			}
+			$selected = array_values( array_filter( $selected ) );
+		}
+
+		if ( ! $selected ) {
+			wp_die( esc_html__( 'Select at least one override.', 'project-overrides' ), '', array( 'response' => 400 ) );
+		}
+
+		if ( 'download' === $operation ) {
+			nocache_headers();
+			header( 'Content-Type: text/css; charset=utf-8' );
+			header( 'Content-Disposition: attachment; filename="project-overrides-selected-' . gmdate( 'Y-m-d' ) . '.css"' );
+			echo $this->build_export( $selected ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- CSS download, sanitized on storage.
+			exit;
+		}
+
+		if ( ! in_array( $operation, array( 'mark', 'delete' ), true ) ) {
+			wp_die( esc_html__( 'Invalid migration action.', 'project-overrides' ), '', array( 'response' => 400 ) );
+		}
+
+		foreach ( $selected as $key ) {
+			if ( preg_match( '/^page:(\d+)$/', $key, $matches ) ) {
+				$post_id = (int) $matches[1];
+				if ( 'page' !== get_post_type( $post_id ) || ! current_user_can( 'edit_post', $post_id ) ) {
+					wp_die( esc_html__( 'You are not allowed to migrate one of the selected overrides.', 'project-overrides' ), '', array( 'response' => 403 ) );
+				}
+			}
+		}
+
+		foreach ( $selected as $key ) {
+			if ( 'global' === $key ) {
+				$this->repository->save_global(
+					'delete' === $operation ? '' : $this->repository->get_global_css(),
+					'delete' === $operation ? 'temporary' : 'migrated',
+					$this->repository->get_global_modified(),
+					$this->repository->get_global_reason(),
+					$this->repository->get_global_ticket()
+				);
+				continue;
+			}
+
+			if ( ! preg_match( '/^page:(\d+)$/', $key, $matches ) ) {
+				continue;
+			}
+			$post_id = (int) $matches[1];
+			if ( 'page' !== get_post_type( $post_id ) ) {
+				continue;
+			}
+			$this->guard_page( $post_id );
+			$this->repository->save_page(
+				$post_id,
+				'delete' === $operation ? '' : $this->repository->get_page_css( $post_id ),
+				'delete' === $operation ? 'temporary' : 'migrated',
+				$this->repository->get_page_modified( $post_id ),
+				$this->repository->get_page_reason( $post_id ),
+				$this->repository->get_page_ticket( $post_id )
+			);
+		}
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'    => 'project-overrides-export',
+					'updated' => '1',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+
+	public function rollback_override(): void {
+		$this->guard();
+		$type        = isset( $_POST['type'] ) ? sanitize_key( wp_unslash( $_POST['type'] ) ) : '';
+		$revision_id = isset( $_POST['revision_id'] ) ? sanitize_text_field( wp_unslash( $_POST['revision_id'] ) ) : '';
+		$post_id     = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+		check_admin_referer( 'project_overrides_rollback_' . $type . '_' . $revision_id );
+
+		if ( 'global' === $type ) {
+			$result = $this->repository->rollback_global( $revision_id );
+		} elseif ( 'page' === $type && $post_id && 'page' === get_post_type( $post_id ) ) {
+			$this->guard_page( $post_id );
+			$result = $this->repository->rollback_page( $post_id, $revision_id );
+		} else {
+			wp_die( esc_html__( 'Invalid revision.', 'project-overrides' ), '', array( 'response' => 400 ) );
+		}
+
+		if ( is_wp_error( $result ) ) {
+			wp_die( esc_html( $result->get_error_message() ), '', array( 'response' => 400 ) );
+		}
+		$this->redirect_to_css_page( $post_id );
 	}
 
 	public function delete_override(): void {
@@ -545,6 +799,14 @@ final class Admin {
 		?>
 		<p class="description"><?php esc_html_e( 'Loaded only on this page. Use CSS only; script and style tags are stripped.', 'project-overrides' ); ?></p>
 		<textarea id="project-overrides-meta-css" class="project-overrides-editor" name="project_overrides_css" rows="12"><?php echo esc_textarea( $this->repository->get_page_css( (int) $post->ID ) ); ?></textarea>
+		<p>
+			<label for="project-overrides-meta-reason"><strong><?php esc_html_e( 'Reason / handoff note', 'project-overrides' ); ?></strong></label>
+			<input id="project-overrides-meta-reason" class="widefat" type="text" name="project_overrides_reason" maxlength="500" value="<?php echo esc_attr( $this->repository->get_page_reason( (int) $post->ID ) ); ?>">
+		</p>
+		<p>
+			<label for="project-overrides-meta-ticket"><strong><?php esc_html_e( 'Ticket URL', 'project-overrides' ); ?></strong></label>
+			<input id="project-overrides-meta-ticket" class="widefat" type="url" name="project_overrides_ticket" value="<?php echo esc_attr( $this->repository->get_page_ticket( (int) $post->ID ) ); ?>" placeholder="https://">
+		</p>
 		<?php
 	}
 
@@ -559,7 +821,9 @@ final class Admin {
 		$css      = isset( $_POST['project_overrides_css'] ) ? (string) wp_unslash( $_POST['project_overrides_css'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- CSS must retain its syntax.
 		$status   = isset( $_POST['project_overrides_status'] ) ? sanitize_key( wp_unslash( $_POST['project_overrides_status'] ) ) : 'temporary';
 		$modified = isset( $_POST['project_overrides_modified'] ) ? absint( $_POST['project_overrides_modified'] ) : 0;
-		$result   = $this->repository->save_page( $post_id, $css, $status, $modified );
+		$reason   = isset( $_POST['project_overrides_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['project_overrides_reason'] ) ) : '';
+		$ticket   = isset( $_POST['project_overrides_ticket'] ) ? esc_url_raw( wp_unslash( $_POST['project_overrides_ticket'] ) ) : '';
+		$result   = $this->repository->save_page( $post_id, $css, $status, $modified, $reason, $ticket );
 		if ( is_wp_error( $result ) ) {
 			set_transient( 'project_overrides_notice_' . get_current_user_id(), $result->get_error_message(), 5 * MINUTE_IN_SECONDS );
 		}
