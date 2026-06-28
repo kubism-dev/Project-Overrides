@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<ruleset name="Project Overrides">
+	<description>WordPress coding standards for Project Overrides.</description>
+
+	<file>project-overrides.php</file>
+	<file>uninstall.php</file>
+	<file>src</file>
+
+	<arg name="basepath" value="."/>
+	<arg name="colors"/>
+	<arg value="sp"/>
+	<arg name="extensions" value="php"/>
+
+	<rule ref="WordPress">
+		<exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
+	</rule>
+	<rule ref="WordPress-Docs"/>
+	<config name="minimum_supported_wp_version" value="6.4"/>
+</ruleset>

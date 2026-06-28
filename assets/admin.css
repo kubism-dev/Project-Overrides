@@ -1,0 +1,207 @@
+.project-overrides {
+	max-width: 1400px;
+}
+
+.project-overrides__summary {
+	align-items: center;
+	background: #fff8e5;
+	border-left: 4px solid #dba617;
+	display: flex;
+	font-size: 14px;
+	gap: 8px;
+	margin: 16px 0 20px;
+	padding: 12px 16px;
+}
+
+.project-overrides__layout {
+	align-items: start;
+	display: grid;
+	gap: 20px;
+	grid-template-columns: minmax(0, 1fr) 280px;
+}
+
+.project-overrides__layout main {
+	display: grid;
+	gap: 20px;
+	min-width: 0;
+}
+
+.project-overrides__panel,
+.project-overrides__tokens {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	box-sizing: border-box;
+	padding: 20px;
+}
+
+.project-overrides__panel h2,
+.project-overrides__tokens h2 {
+	margin-top: 0;
+}
+
+.project-overrides__heading {
+	align-items: start;
+	display: flex;
+	gap: 24px;
+	justify-content: space-between;
+	margin-bottom: 16px;
+}
+
+.project-overrides__heading h2 {
+	margin-bottom: 4px;
+}
+
+.project-overrides__heading p {
+	color: #646970;
+	margin: 0;
+}
+
+.project-overrides__status select {
+	min-width: 120px;
+}
+
+.project-overrides-page-select {
+	display: block;
+	margin: 8px 0 16px;
+	max-width: 420px;
+	width: 100%;
+}
+
+.project-overrides .CodeMirror {
+	border: 1px solid #8c8f94;
+	height: 360px;
+}
+
+.project-overrides__empty {
+	background: #f6f7f7;
+	border: 1px dashed #c3c4c7;
+	color: #646970;
+	margin-top: 16px;
+	padding: 36px;
+	text-align: center;
+}
+
+.project-overrides__tokens {
+	position: sticky;
+	top: 52px;
+}
+
+.project-overrides__tokens > p {
+	color: #646970;
+}
+
+.project-overrides__tokens h3 {
+	border-top: 1px solid #dcdcde;
+	margin: 18px 0 10px;
+	padding-top: 16px;
+}
+
+.project-overrides__token-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.project-overrides__token-list .button {
+	height: auto;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.project-overrides__all {
+	margin-top: 24px;
+}
+
+.project-overrides__filters {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 0 0 14px;
+}
+
+.project-overrides__filters .button-link {
+	margin-left: 4px;
+}
+
+.project-overrides__badge {
+	border-radius: 999px;
+	display: inline-block;
+	font-size: 12px;
+	font-weight: 600;
+	padding: 3px 9px;
+}
+
+.project-overrides__badge--temporary {
+	background: #fcf0c6;
+	color: #614200;
+}
+
+.project-overrides__badge--permanent {
+	background: #d7f0df;
+	color: #005c12;
+}
+
+.project-overrides__export-actions {
+	display: flex;
+	gap: 8px;
+	margin: 18px 0;
+}
+
+.project-overrides > .CodeMirror {
+	max-width: 1100px;
+}
+
+#project-overrides-css .CodeMirror {
+	margin-top: 12px;
+}
+
+.CodeMirror-hints {
+	z-index: 100100;
+}
+
+.project-overrides-hints {
+	background: #fff;
+	border: 1px solid #8c8f94;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+	list-style: none;
+	margin: 0;
+	max-height: 220px;
+	min-width: 180px;
+	overflow-y: auto;
+	padding: 3px;
+	position: absolute;
+	z-index: 100100;
+}
+
+.project-overrides-hints li {
+	margin: 0;
+}
+
+.project-overrides-hints button {
+	background: transparent;
+	border: 0;
+	cursor: pointer;
+	font-family: monospace;
+	padding: 5px 8px;
+	text-align: left;
+	width: 100%;
+}
+
+.project-overrides-hints button:hover,
+.project-overrides-hints button:focus {
+	background: #2271b1;
+	color: #fff;
+	outline: 0;
+}
+
+@media (max-width: 960px) {
+	.project-overrides__layout {
+		grid-template-columns: 1fr;
+	}
+
+	.project-overrides__tokens {
+		position: static;
+	}
+}

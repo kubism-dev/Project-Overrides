@@ -1,0 +1,33 @@
+# Dependencies
+/vendor/
+
+# Generated packages and test output
+/dist/
+/build/
+/.phpunit.cache/
+/.phpunit.result.cache
+/coverage/
+*.log
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# IDE and editor settings
+/.idea/
+/.vscode/
+*.code-workspace
+*.swp
+*.swo
+*~
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
