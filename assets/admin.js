@@ -101,6 +101,7 @@
 			settings.codemirror.indentUnit = 2;
 			settings.codemirror.tabSize = 2;
 			settings.codemirror.lineWrapping = false;
+			settings.codemirror.theme = 'project-overrides-dark';
 
 			if ( this.readOnly ) {
 				settings.codemirror.readOnly = true;
@@ -118,6 +119,8 @@
 				}
 			} );
 			editor.on( 'change', function () {
+				editor.save();
+				editor.getTextArea().dispatchEvent( new Event( 'input', { bubbles: true } ) );
 				dirty = true;
 			} );
 			enableAutocomplete( editor );

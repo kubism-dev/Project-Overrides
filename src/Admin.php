@@ -794,7 +794,6 @@ final class Admin {
 
 	public function render_meta_box( WP_Post $post ): void {
 		wp_nonce_field( 'project_overrides_save_meta', 'project_overrides_meta_nonce' );
-		printf( '<input type="hidden" name="project_overrides_modified" value="%s">', esc_attr( (string) $this->repository->get_page_modified( (int) $post->ID ) ) );
 		$this->render_status( 'project_overrides_status', $this->repository->get_page_status( (int) $post->ID ) );
 		?>
 		<p class="description"><?php esc_html_e( 'Loaded only on this page. Use CSS only; script and style tags are stripped.', 'project-overrides' ); ?></p>
@@ -817,13 +816,15 @@ final class Admin {
 		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) || ! current_user_can( self::CAPABILITY ) || ! current_user_can( 'edit_post', $post_id ) || 'page' !== $post->post_type ) {
 			return;
 		}
+		if ( ! isset( $_POST['project_overrides_css'] ) ) {
+			return;
+		}
 
-		$css      = isset( $_POST['project_overrides_css'] ) ? (string) wp_unslash( $_POST['project_overrides_css'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- CSS must retain its syntax.
+		$css      = (string) wp_unslash( $_POST['project_overrides_css'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- CSS must retain its syntax.
 		$status   = isset( $_POST['project_overrides_status'] ) ? sanitize_key( wp_unslash( $_POST['project_overrides_status'] ) ) : 'temporary';
-		$modified = isset( $_POST['project_overrides_modified'] ) ? absint( $_POST['project_overrides_modified'] ) : 0;
 		$reason   = isset( $_POST['project_overrides_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['project_overrides_reason'] ) ) : '';
 		$ticket   = isset( $_POST['project_overrides_ticket'] ) ? esc_url_raw( wp_unslash( $_POST['project_overrides_ticket'] ) ) : '';
-		$result   = $this->repository->save_page( $post_id, $css, $status, $modified, $reason, $ticket );
+		$result   = $this->repository->save_page( $post_id, $css, $status, null, $reason, $ticket );
 		if ( is_wp_error( $result ) ) {
 			set_transient( 'project_overrides_notice_' . get_current_user_id(), $result->get_error_message(), 5 * MINUTE_IN_SECONDS );
 		}

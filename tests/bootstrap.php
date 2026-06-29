@@ -119,6 +119,13 @@ if ( ! function_exists( 'sanitize_html_class' ) ) {
 	}
 }
 
+if ( ! function_exists( 'sanitize_title' ) ) {
+	function sanitize_title( string $title ): string {
+		$title = strtolower( $title );
+		return trim( preg_replace( '/[^a-z0-9_-]+/', '-', $title ) ?? '', '-' );
+	}
+}
+
 if ( ! function_exists( 'apply_filters' ) ) {
 	function apply_filters( string $hook, $value ) {
 		return $value;
@@ -128,3 +135,4 @@ if ( ! function_exists( 'apply_filters' ) ) {
 require_once dirname( __DIR__ ) . '/src/Repository.php';
 require_once dirname( __DIR__ ) . '/src/ClassNames.php';
 require_once dirname( __DIR__ ) . '/src/Exporter.php';
+require_once dirname( __DIR__ ) . '/src/ThemeTokens.php';

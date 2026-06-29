@@ -3,7 +3,7 @@ Contributors: projectoverrides
 Tags: css, developer, gutenberg, theme, overrides
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.1.0
+Stable tag: 1.1.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -56,6 +56,13 @@ Run `composer lint` and `composer test` before packaging. On Windows,
 only.
 
 == Changelog ==
+
+= 1.1.2 =
+* Added a dark CodeMirror theme and improved editor spacing.
+
+= 1.1.1 =
+* Fixed per-page CSS persistence in the block editor.
+* Fixed loading presets from resolved theme.json data.
 
 = 1.1.0 =
 * Added revision history, rollback, change metadata, and migration workflow.

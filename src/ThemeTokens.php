@@ -41,10 +41,10 @@ final class ThemeTokens {
 		$data     = \WP_Theme_JSON_Resolver::get_merged_data()->get_data();
 		$settings = $data['settings'] ?? array();
 
-		$this->append_presets( $tokens['colors'], $settings['color']['palette']['theme'] ?? array(), 'color' );
-		$this->append_presets( $tokens['spacing'], $settings['spacing']['spacingSizes']['theme'] ?? array(), 'spacing' );
-		$this->append_presets( $tokens['typography'], $settings['typography']['fontSizes']['theme'] ?? array(), 'font-size' );
-		$this->append_presets( $tokens['typography'], $settings['typography']['fontFamilies']['theme'] ?? array(), 'font-family' );
+		$this->append_presets( $tokens['colors'], $settings['color']['palette'] ?? array(), 'color' );
+		$this->append_presets( $tokens['spacing'], $settings['spacing']['spacingSizes'] ?? array(), 'spacing' );
+		$this->append_presets( $tokens['typography'], $settings['typography']['fontSizes'] ?? array(), 'font-size' );
+		$this->append_presets( $tokens['typography'], $settings['typography']['fontFamilies'] ?? array(), 'font-family' );
 
 		$this->cache = $tokens;
 		return $this->cache;

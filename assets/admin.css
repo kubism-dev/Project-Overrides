@@ -67,9 +67,89 @@
 	width: 100%;
 }
 
-.project-overrides .CodeMirror {
-	border: 1px solid #8c8f94;
+.project-overrides .CodeMirror,
+#project-overrides-css .CodeMirror {
+	background: #0d1117;
+	border: 1px solid #30363d;
+	border-radius: 4px;
+	color: #e6edf3;
 	height: 360px;
+}
+
+.cm-s-project-overrides-dark .CodeMirror-lines {
+	padding: 12px 0;
+}
+
+.cm-s-project-overrides-dark pre.CodeMirror-line,
+.cm-s-project-overrides-dark pre.CodeMirror-line-like {
+	padding: 0 14px;
+}
+
+.cm-s-project-overrides-dark .CodeMirror-gutters {
+	background: #161b22;
+	border-right: 1px solid #30363d;
+}
+
+.cm-s-project-overrides-dark .CodeMirror-linenumber {
+	color: #6e7681;
+	padding: 0 10px 0 8px;
+}
+
+.cm-s-project-overrides-dark .CodeMirror-cursor {
+	border-left-color: #f0f6fc;
+}
+
+.cm-s-project-overrides-dark .CodeMirror-selected,
+.cm-s-project-overrides-dark.CodeMirror-focused .CodeMirror-selected {
+	background: #264f78;
+}
+
+.cm-s-project-overrides-dark .CodeMirror-activeline-background {
+	background: #161b22;
+}
+
+.cm-s-project-overrides-dark .cm-comment {
+	color: #8b949e;
+}
+
+.cm-s-project-overrides-dark .cm-atom,
+.cm-s-project-overrides-dark .cm-number {
+	color: #79c0ff;
+}
+
+.cm-s-project-overrides-dark .cm-attribute,
+.cm-s-project-overrides-dark .cm-def,
+.cm-s-project-overrides-dark .cm-property,
+.cm-s-project-overrides-dark .cm-variable,
+.cm-s-project-overrides-dark .cm-variable-2 {
+	color: #d2a8ff;
+}
+
+.cm-s-project-overrides-dark .cm-builtin,
+.cm-s-project-overrides-dark .cm-keyword,
+.cm-s-project-overrides-dark .cm-qualifier,
+.cm-s-project-overrides-dark .cm-tag {
+	color: #ff7b72;
+}
+
+.cm-s-project-overrides-dark .cm-string,
+.cm-s-project-overrides-dark .cm-string-2 {
+	color: #a5d6ff;
+}
+
+.cm-s-project-overrides-dark .cm-meta {
+	color: #ffa657;
+}
+
+.cm-s-project-overrides-dark .cm-error {
+	background: rgba(248, 81, 73, 0.18);
+	color: #ff7b72;
+}
+
+.cm-s-project-overrides-dark .CodeMirror-matchingbracket {
+	background: rgba(46, 160, 67, 0.24);
+	color: #e6edf3 !important;
+	outline: 1px solid #3fb950;
 }
 
 .project-overrides__empty {
