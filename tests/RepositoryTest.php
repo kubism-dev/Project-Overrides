@@ -71,9 +71,9 @@ final class RepositoryTest extends TestCase {
 	}
 
 	public function test_saving_changed_global_override_creates_restorable_revision(): void {
-		$this->repository->save_global( '.old { color: red; }', 'temporary', 0, 'Hotfix', 'https://example.com/1' );
+		$this->repository->save_global( '.old { color: red; }', 'temporary', 0, 'Hotfix' );
 		$modified = $this->repository->get_global_modified();
-		$this->repository->save_global( '.new { color: blue; }', 'permanent', $modified, 'Final', 'https://example.com/2' );
+		$this->repository->save_global( '.new { color: blue; }', 'permanent', $modified, 'Final' );
 
 		$revisions = $this->repository->get_global_revisions();
 		self::assertCount( 1, $revisions );
@@ -82,7 +82,7 @@ final class RepositoryTest extends TestCase {
 
 		$this->repository->rollback_global( (string) $revisions[0]['id'] );
 		self::assertSame( '.old { color: red; }', $this->repository->get_global_css() );
-		self::assertSame( 'https://example.com/1', $this->repository->get_global_ticket() );
+		self::assertSame( 'Hotfix', $this->repository->get_global_reason() );
 	}
 
 	public function test_page_revision_history_is_bounded(): void {
@@ -91,5 +91,21 @@ final class RepositoryTest extends TestCase {
 		}
 
 		self::assertCount( 20, $this->repository->get_page_revisions( 42 ) );
+	}
+
+	public function test_saves_pattern_and_block_class_scopes(): void {
+		self::assertTrue( $this->repository->save_scoped_override( 'pattern:42', '.hero { color: red; }', 'temporary', 'Landing hero' ) );
+		self::assertTrue( $this->repository->save_scoped_override( 'class:c-card', '.c-card { padding: 1rem; }', 'permanent' ) );
+
+		$overrides = $this->repository->get_scoped_overrides();
+		self::assertSame( 'Landing hero', $overrides['pattern:42']['reason'] );
+		self::assertSame( 'permanent', $overrides['class:c-card']['status'] );
+	}
+
+	public function test_rejects_invalid_scoped_override_keys(): void {
+		self::assertInstanceOf(
+			WP_Error::class,
+			$this->repository->save_scoped_override( 'selector:body', 'body { color: red; }', 'temporary' )
+		);
 	}
 }

@@ -5,6 +5,7 @@
 	let activeEditor = null;
 	let hintMenu = null;
 	let dirty = false;
+	let activeScope = null;
 
 	function bemHint( editor ) {
 		const cursor = editor.getCursor();
@@ -127,8 +128,39 @@
 		} );
 	}
 
+	function addBlockEditorSaveButton() {
+		if ( ! document.body.classList.contains( 'block-editor-page' ) || ! window.wp?.data ) {
+			return;
+		}
+
+		const insertButton = function () {
+			const publishButton = document.querySelector( '.editor-post-publish-button, .editor-post-publish-button__button, .editor-post-save-draft' );
+			if ( ! publishButton || document.querySelector( '.project-overrides-save-css' ) ) {
+				return;
+			}
+
+			const button = document.createElement( 'button' );
+			button.type = 'button';
+			button.className = 'components-button is-secondary project-overrides-save-css';
+			button.textContent = window.projectOverrides.saveCss;
+			button.addEventListener( 'click', function () {
+				editors.forEach( function ( editor ) {
+					editor.save();
+					editor.getTextArea().dispatchEvent( new Event( 'input', { bubbles: true } ) );
+				} );
+				wp.data.dispatch( 'core/editor' ).savePost();
+			} );
+			publishButton.parentNode.insertBefore( button, publishButton );
+		};
+
+		insertButton();
+		new MutationObserver( insertButton ).observe( document.body, { childList: true, subtree: true } );
+	}
+
 	$( function () {
 		initializeEditors();
+		addBlockEditorSaveButton();
+		activeScope = $( '#project-overrides-scope' ).val() || null;
 
 		$( '.project-overrides-page-select' ).on( 'change', function () {
 			const base = $( this ).data( 'base-url' );
@@ -140,11 +172,47 @@
 			window.location.href = this.value ? base + '&post_id=' + encodeURIComponent( this.value ) : base;
 		} );
 
+		$( '.project-overrides-general-scope-select' ).on( 'change', function () {
+			if ( dirty && ! window.confirm( window.projectOverrides.unsaved ) ) {
+				this.value = new URLSearchParams( window.location.search ).get( 'scope' ) || '';
+				return;
+			}
+			const url = new URL( window.location.href );
+			if ( this.value ) {
+				url.searchParams.set( 'scope', this.value );
+			} else {
+				url.searchParams.delete( 'scope' );
+			}
+			url.searchParams.delete( 'updated' );
+			dirty = false;
+			window.location.href = url.toString();
+		} );
+
 		$( '.project-overrides form' ).on( 'submit', function () {
 			dirty = false;
 		} );
 
 		$( '.project-overrides__metadata input' ).on( 'input', function () {
+			dirty = true;
+		} );
+
+		$( '#project-overrides-scope' ).on( 'change', function () {
+			if ( dirty && activeScope && ! window.confirm( window.projectOverrides.unsaved ) ) {
+				this.value = activeScope;
+				return;
+			}
+			const editor = editors.get( 'project-overrides-meta-css' );
+			const data = window.projectOverrides.scopeData[ this.value ] || {
+				css: '',
+				status: 'temporary',
+				reason: '',
+			};
+			if ( editor ) {
+				editor.setValue( data.css );
+			}
+			$( '[name="project_overrides_status"]' ).val( data.status );
+			$( '[name="project_overrides_reason"]' ).val( data.reason );
+			activeScope = this.value;
 			dirty = true;
 		} );
 

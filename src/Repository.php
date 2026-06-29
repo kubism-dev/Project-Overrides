@@ -17,13 +17,12 @@ final class Repository {
 	public const GLOBAL_STATUS_OPTION = 'project_overrides_global_status';
 	public const GLOBAL_MODIFIED      = 'project_overrides_global_modified';
 	public const GLOBAL_REASON        = 'project_overrides_global_reason';
-	public const GLOBAL_TICKET        = 'project_overrides_global_ticket';
 	public const GLOBAL_REVISIONS     = 'project_overrides_global_revisions';
+	public const SCOPED_OPTION        = 'project_overrides_scoped';
 	public const CSS_META             = '_project_overrides_css';
 	public const STATUS_META          = '_project_overrides_status';
 	public const MODIFIED_META        = '_project_overrides_modified';
 	public const REASON_META          = '_project_overrides_reason';
-	public const TICKET_META          = '_project_overrides_ticket';
 	public const REVISIONS_META       = '_project_overrides_revisions';
 	private const REVISION_LIMIT      = 20;
 
@@ -140,10 +139,6 @@ final class Repository {
 		return (string) get_option( self::GLOBAL_REASON, '' );
 	}
 
-	public function get_global_ticket(): string {
-		return (string) get_option( self::GLOBAL_TICKET, '' );
-	}
-
 	/**
 	 * @return array<int, array<string, mixed>>
 	 */
@@ -155,7 +150,7 @@ final class Repository {
 	/**
 	 * @return true|WP_Error
 	 */
-	public function save_global( string $css, string $status, ?int $expected_modified = null, string $reason = '', string $ticket = '' ) {
+	public function save_global( string $css, string $status, ?int $expected_modified = null, string $reason = '' ) {
 		$validation = $this->validate_css( $css );
 		if ( is_wp_error( $validation ) ) {
 			return $validation;
@@ -167,21 +162,19 @@ final class Repository {
 		$css    = $this->sanitize_css( $css );
 		$status = $this->sanitize_status( $status );
 		$reason = sanitize_text_field( $reason );
-		$ticket = esc_url_raw( $ticket );
 
-		if ( $this->global_changed( $css, $status, $reason, $ticket ) ) {
+		if ( $this->global_changed( $css, $status, $reason ) ) {
 			$this->store_global_revision();
 		}
 		if ( '' === trim( $css ) ) {
 			$status = 'temporary';
 			$reason = '';
-			$ticket = '';
 		}
 
 		update_option( self::GLOBAL_CSS_OPTION, $css, false );
 		update_option( self::GLOBAL_STATUS_OPTION, $status, false );
 		update_option( self::GLOBAL_REASON, $reason, false );
-		update_option( self::GLOBAL_TICKET, $ticket, false );
+		delete_option( 'project_overrides_global_ticket' );
 		update_option( self::GLOBAL_MODIFIED, time(), false );
 		return true;
 	}
@@ -202,8 +195,55 @@ final class Repository {
 		return (string) get_post_meta( $post_id, self::REASON_META, true );
 	}
 
-	public function get_page_ticket( int $post_id ): string {
-		return (string) get_post_meta( $post_id, self::TICKET_META, true );
+	/**
+	 * @return array<string, array{css:string,status:string,reason:string,modified:int}>
+	 */
+	public function get_scoped_overrides(): array {
+		$overrides = get_option( self::SCOPED_OPTION, array() );
+		return is_array( $overrides ) ? $overrides : array();
+	}
+
+	/**
+	 * @return array{css:string,status:string,reason:string,modified:int}
+	 */
+	public function get_scoped_override( string $scope ): array {
+		$overrides = $this->get_scoped_overrides();
+		$override  = $overrides[ $scope ] ?? array();
+		return array(
+			'css'      => (string) ( $override['css'] ?? '' ),
+			'status'   => $this->sanitize_status( (string) ( $override['status'] ?? 'temporary' ) ),
+			'reason'   => (string) ( $override['reason'] ?? '' ),
+			'modified' => (int) ( $override['modified'] ?? 0 ),
+		);
+	}
+
+	/**
+	 * @return true|WP_Error
+	 */
+	public function save_scoped_override( string $scope, string $css, string $status, string $reason = '' ) {
+		if ( ! preg_match( '/^(?:pattern:\d+|class:[A-Za-z0-9_-]+)$/', $scope ) ) {
+			return new WP_Error( 'invalid_scope', __( 'The selected override scope is invalid.', 'project-overrides' ) );
+		}
+
+		$validation = $this->validate_css( $css );
+		if ( is_wp_error( $validation ) ) {
+			return $validation;
+		}
+
+		$overrides = $this->get_scoped_overrides();
+		$css       = $this->sanitize_css( $css );
+		if ( '' === trim( $css ) ) {
+			unset( $overrides[ $scope ] );
+		} else {
+			$overrides[ $scope ] = array(
+				'css'      => $css,
+				'status'   => $this->sanitize_status( $status ),
+				'reason'   => sanitize_text_field( $reason ),
+				'modified' => time(),
+			);
+		}
+		update_option( self::SCOPED_OPTION, $overrides, false );
+		return true;
 	}
 
 	/**
@@ -217,7 +257,7 @@ final class Repository {
 	/**
 	 * @return true|WP_Error
 	 */
-	public function save_page( int $post_id, string $css, string $status, ?int $expected_modified = null, string $reason = '', string $ticket = '' ) {
+	public function save_page( int $post_id, string $css, string $status, ?int $expected_modified = null, string $reason = '' ) {
 		$validation = $this->validate_css( $css );
 		if ( is_wp_error( $validation ) ) {
 			return $validation;
@@ -229,18 +269,17 @@ final class Repository {
 		$css    = $this->sanitize_css( $css );
 		$status = $this->sanitize_status( $status );
 		$reason = sanitize_text_field( $reason );
-		$ticket = esc_url_raw( $ticket );
 
-		if ( $this->page_changed( $post_id, $css, $status, $reason, $ticket ) ) {
+		if ( $this->page_changed( $post_id, $css, $status, $reason ) ) {
 			$this->store_page_revision( $post_id );
 		}
+		delete_post_meta( $post_id, '_project_overrides_ticket' );
 
 		if ( '' === trim( $css ) ) {
 			delete_post_meta( $post_id, self::CSS_META );
 			delete_post_meta( $post_id, self::STATUS_META );
 			delete_post_meta( $post_id, self::MODIFIED_META );
 			delete_post_meta( $post_id, self::REASON_META );
-			delete_post_meta( $post_id, self::TICKET_META );
 			return true;
 		}
 
@@ -248,7 +287,6 @@ final class Repository {
 		update_post_meta( $post_id, self::STATUS_META, $status );
 		update_post_meta( $post_id, self::MODIFIED_META, time() );
 		update_post_meta( $post_id, self::REASON_META, $reason );
-		update_post_meta( $post_id, self::TICKET_META, $ticket );
 		return true;
 	}
 
@@ -262,8 +300,7 @@ final class Repository {
 					(string) ( $revision['css'] ?? '' ),
 					(string) ( $revision['status'] ?? 'temporary' ),
 					$this->get_global_modified(),
-					(string) ( $revision['reason'] ?? '' ),
-					(string) ( $revision['ticket'] ?? '' )
+					(string) ( $revision['reason'] ?? '' )
 				);
 			}
 		}
@@ -282,8 +319,7 @@ final class Repository {
 					(string) ( $revision['css'] ?? '' ),
 					(string) ( $revision['status'] ?? 'temporary' ),
 					$this->get_page_modified( $post_id ),
-					(string) ( $revision['reason'] ?? '' ),
-					(string) ( $revision['ticket'] ?? '' )
+					(string) ( $revision['reason'] ?? '' )
 				);
 			}
 		}
@@ -291,18 +327,16 @@ final class Repository {
 		return new WP_Error( 'invalid_revision', __( 'The selected revision no longer exists.', 'project-overrides' ) );
 	}
 
-	private function global_changed( string $css, string $status, string $reason, string $ticket ): bool {
+	private function global_changed( string $css, string $status, string $reason ): bool {
 		return $css !== $this->get_global_css()
 			|| $status !== $this->get_global_status()
-			|| $reason !== $this->get_global_reason()
-			|| $ticket !== $this->get_global_ticket();
+			|| $reason !== $this->get_global_reason();
 	}
 
-	private function page_changed( int $post_id, string $css, string $status, string $reason, string $ticket ): bool {
+	private function page_changed( int $post_id, string $css, string $status, string $reason ): bool {
 		return $css !== $this->get_page_css( $post_id )
 			|| $status !== $this->get_page_status( $post_id )
-			|| $reason !== $this->get_page_reason( $post_id )
-			|| $ticket !== $this->get_page_ticket( $post_id );
+			|| $reason !== $this->get_page_reason( $post_id );
 	}
 
 	private function store_global_revision(): void {
@@ -316,7 +350,6 @@ final class Repository {
 				$this->get_global_css(),
 				$this->get_global_status(),
 				$this->get_global_reason(),
-				$this->get_global_ticket(),
 				$this->get_global_modified()
 			)
 		);
@@ -334,7 +367,6 @@ final class Repository {
 				$this->get_page_css( $post_id ),
 				$this->get_page_status( $post_id ),
 				$this->get_page_reason( $post_id ),
-				$this->get_page_ticket( $post_id ),
 				$this->get_page_modified( $post_id )
 			)
 		);
@@ -344,13 +376,12 @@ final class Repository {
 	/**
 	 * @return array<string, mixed>
 	 */
-	private function revision_snapshot( string $css, string $status, string $reason, string $ticket, int $modified ): array {
+	private function revision_snapshot( string $css, string $status, string $reason, int $modified ): array {
 		return array(
 			'id'       => wp_generate_uuid4(),
 			'css'      => $css,
 			'status'   => $status,
 			'reason'   => $reason,
-			'ticket'   => $ticket,
 			'modified' => $modified,
 			'author'   => get_current_user_id(),
 		);
@@ -415,6 +446,11 @@ final class Repository {
 
 		foreach ( $this->get_pages_with_overrides() as $page ) {
 			if ( 'temporary' === $this->get_page_status( (int) $page->ID ) ) {
+				++$count;
+			}
+		}
+		foreach ( $this->get_scoped_overrides() as $override ) {
+			if ( 'temporary' === $this->sanitize_status( (string) ( $override['status'] ?? '' ) ) && '' !== trim( (string) ( $override['css'] ?? '' ) ) ) {
 				++$count;
 			}
 		}

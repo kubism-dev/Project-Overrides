@@ -3,7 +3,7 @@ Contributors: projectoverrides
 Tags: css, developer, gutenberg, theme, overrides
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.1.2
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,7 +21,7 @@ that is not ready to migrate into a custom theme. It provides:
 * Click-to-insert theme.json preset variables.
 * Optional BEM class autocomplete from a theme JSON file or PHP filter.
 * Revision history with rollback.
-* Reason notes and optional ticket URLs.
+* Reason and handoff notes.
 * Selective migration export and inactive migrated status.
 
 Only administrators can edit overrides. The plugin does not execute PHP or
@@ -56,6 +56,11 @@ Run `composer lint` and `composer test` before packaging. On Windows,
 only.
 
 == Changelog ==
+
+= 1.2.0 =
+* Added global, page, synced-pattern, and block-class editor scopes.
+* Added a dedicated Gutenberg Save CSS action.
+* Removed ticket URL fields.
 
 = 1.1.2 =
 * Added a dark CodeMirror theme and improved editor spacing.

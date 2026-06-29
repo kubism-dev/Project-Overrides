@@ -13,6 +13,7 @@ It is not a page builder or visual CSS editor.
 
 - Global CSS loaded in the document `<head>`.
 - Page-specific CSS loaded only on the relevant page.
+- Synced-pattern and block-class override scopes.
 - Native WordPress CodeMirror editing.
 - Temporary and permanent override statuses.
 - Dashboard reminder for temporary overrides.
@@ -22,7 +23,7 @@ It is not a page builder or visual CSS editor.
 - Optional `c-` and `o-` BEM class autocomplete.
 - Stale-edit protection when multiple administrators edit an override.
 - Bounded revision history with one-click rollback.
-- Reason/handoff notes and optional ticket links.
+- Reason/handoff notes.
 - Selective migration exports with migrated and delete completion actions.
 - Administrator-only access with nonce-protected writes.
 
@@ -70,6 +71,19 @@ when that page is requested.
 Emptying a page override removes its associated CSS, status, and modification
 metadata.
 
+### Override scopes
+
+The page editor can save CSS to one of four scopes:
+
+- **Global** — loaded on every front-end page.
+- **Page** — loaded only for the page being edited.
+- **Pattern** — loaded when the page contains the selected synced pattern.
+- **Block class** — loaded globally and authored against the selected class,
+  such as `.c-card`, so the selector limits where it applies.
+
+Unsynced patterns become ordinary blocks when inserted and no longer retain
+their source pattern identity, so only synced patterns can be matched reliably.
+
 ### Statuses
 
 Every non-empty override is either:
@@ -104,17 +118,17 @@ existing selectors and at-rules syntactically valid.
 
 ## Revision history and change metadata
 
-When an existing override changes, the previous CSS, status, reason, ticket,
-author ID, and modification time are stored as a revision. The latest 20
+When an existing override changes, the previous CSS, status, reason, author ID,
+and modification time are stored as a revision. The latest 20
 revisions are retained for each global or page override.
 
 Use **Revision history** below the CSS editors to restore an earlier version.
 Restoring is itself revisioned, so the version being replaced remains
 recoverable.
 
-Each override also supports a short reason or handoff note and an optional
-ticket URL. This context appears in the override inventory and follows the
-override through revision restores.
+Each override also supports a short reason or handoff note. This context
+appears in the override inventory and follows the override through revision
+restores.
 
 ## Theme tokens
 
@@ -219,8 +233,8 @@ tools/build.ps1         Production ZIP builder
 ```
 
 The persistence, export, token, and interface responsibilities are separated.
-JavaScript overrides, JSON import/export, pattern-specific overrides, Monaco,
-and theme synchronization are intentionally not implemented.
+JavaScript overrides, JSON import/export, Monaco, and theme synchronization are
+intentionally not implemented.
 
 ## Development
 

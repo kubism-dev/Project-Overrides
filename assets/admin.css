@@ -60,7 +60,8 @@
 	min-width: 120px;
 }
 
-.project-overrides-page-select {
+.project-overrides-page-select,
+.project-overrides-general-scope-select {
 	display: block;
 	margin: 8px 0 16px;
 	max-width: 420px;
@@ -231,7 +232,7 @@
 .project-overrides__metadata {
 	display: grid;
 	gap: 12px;
-	grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
+	grid-template-columns: 1fr;
 	margin-top: 14px;
 }
 
@@ -296,6 +297,17 @@
 
 #project-overrides-css .CodeMirror {
 	margin-top: 12px;
+}
+
+#project-overrides-css #project-overrides-scope {
+	display: block;
+	margin-top: 6px;
+	max-width: 100%;
+	width: 100%;
+}
+
+.project-overrides-save-css {
+	margin-right: 8px;
 }
 
 .CodeMirror-hints {
