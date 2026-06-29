@@ -271,10 +271,32 @@
 	align-items: center;
 	border-top: 1px solid #dcdcde;
 	display: flex;
+	flex-wrap: wrap;
 	gap: 12px;
 	justify-content: space-between;
 	margin: 0;
 	padding: 10px 0;
+}
+
+.project-overrides__diff {
+	flex-basis: 100%;
+}
+
+.project-overrides__diff summary {
+	color: #2271b1;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.project-overrides__diff pre {
+	background: #0d1117;
+	border-radius: 4px;
+	color: #e6edf3;
+	margin: 8px 0 0;
+	max-height: 180px;
+	overflow: auto;
+	padding: 10px 12px;
+	white-space: pre-wrap;
 }
 
 .project-overrides__migration-list {
@@ -327,6 +349,19 @@
 	font-weight: 600;
 	margin: 12px 0 8px;
 	padding: 8px 10px;
+}
+
+.project-overrides-use-selected-class {
+	margin-left: 8px;
+}
+
+.project-overrides__age {
+	color: #8a6d00;
+}
+
+.project-overrides__warning {
+	color: #b32d2e;
+	font-weight: 600;
 }
 
 .project-overrides-diagnostics {

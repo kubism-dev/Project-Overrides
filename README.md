@@ -11,7 +11,9 @@ A small WordPress plugin for temporary project CSS.
 - Track temporary, permanent, and migrated overrides.
 - Keep revision history and rollback for every scope.
 - Export CSS when it is ready to move into the theme.
-- Preview matches, inspect activation diagnostics, and save with `Cmd/Ctrl+S`.
+- Preview overrides in Gutenberg, inspect diagnostics, and save with
+  `Cmd/Ctrl+S`.
+- Jump from the frontend admin bar back to the current page override.
 
 Pattern overrides apply everywhere the selected synced pattern is used.
 Block-class overrides are loaded globally, so author them against the selected

@@ -6,6 +6,8 @@
 	let hintMenu = null;
 	let dirty = false;
 	let activeScope = null;
+	let selectedBlockClass = '';
+	let previewTimer = null;
 
 	function bemHint( editor ) {
 		const cursor = editor.getCursor();
@@ -123,6 +125,7 @@
 				editor.save();
 				editor.getTextArea().dispatchEvent( new Event( 'input', { bubbles: true } ) );
 				dirty = true;
+				schedulePreviewUpdate();
 			} );
 			enableAutocomplete( editor );
 		} );
@@ -143,6 +146,61 @@
 			return window.parent.wp.data;
 		}
 		return null;
+	}
+
+	function injectPreviewCss( css ) {
+		const apply = function ( doc ) {
+			if ( ! doc?.head ) {
+				return;
+			}
+			let style = doc.getElementById( 'project-overrides-editor-preview-css' );
+			if ( ! style ) {
+				style = doc.createElement( 'style' );
+				style.id = 'project-overrides-editor-preview-css';
+				doc.head.appendChild( style );
+			}
+			style.textContent = css || '';
+		};
+
+		apply( document );
+		document.querySelectorAll( 'iframe' ).forEach( function ( frame ) {
+			try {
+				apply( frame.contentDocument );
+			} catch ( error ) {
+				// Ignore unrelated cross-origin frames.
+			}
+		} );
+	}
+
+	function buildPreviewCss() {
+		const scopeSelect = document.getElementById( 'project-overrides-scope' );
+		const editor = editors.get( 'project-overrides-meta-css' );
+		const status = document.querySelector( '[name="project_overrides_status"]' )?.value || 'temporary';
+		const scope = scopeSelect?.value || '';
+		const parts = [ window.projectOverrides.previewCss || '' ];
+
+		if ( scope && editor && 'migrated' !== status ) {
+			parts.push( '/* Project Overrides preview: unsaved ' + scope + ' */\n' + editor.getValue() );
+		}
+
+		return parts.filter( Boolean ).join( '\n\n' );
+	}
+
+	function schedulePreviewUpdate() {
+		window.clearTimeout( previewTimer );
+		previewTimer = window.setTimeout( function () {
+			const css = buildPreviewCss();
+			injectPreviewCss( css );
+			if ( window.parent !== window ) {
+				window.parent.postMessage( { type: 'project-overrides-preview-css', css }, window.location.origin );
+			}
+		}, 120 );
+	}
+
+	function observePreviewTargets() {
+		new MutationObserver( function () {
+			injectPreviewCss( buildPreviewCss() );
+		} ).observe( document.body, { childList: true, subtree: true } );
 	}
 
 	function focusCssEditor() {
@@ -240,7 +298,7 @@
 		let discovered = [];
 		const sendClasses = function () {
 			document.querySelectorAll( 'iframe' ).forEach( function ( frame ) {
-				frame.contentWindow?.postMessage( { type: 'project-overrides-classes', classes: discovered }, window.location.origin );
+				frame.contentWindow?.postMessage( { type: 'project-overrides-classes', classes: discovered, selectedClass: selectedBlockClass }, window.location.origin );
 			} );
 		};
 		window.addEventListener( 'message', function ( event ) {
@@ -250,6 +308,7 @@
 		} );
 		wp.data.subscribe( function () {
 			const blocks = wp.data.select( 'core/block-editor' )?.getBlocks() || [];
+			const selected = wp.data.select( 'core/block-editor' )?.getSelectedBlock();
 			const classes = [];
 			const walk = function ( items ) {
 				items.forEach( function ( block ) {
@@ -263,7 +322,15 @@
 			};
 			walk( blocks );
 			const unique = [ ...new Set( classes ) ].sort();
-			const signature = unique.join( ',' );
+			selectedBlockClass = '';
+			String( selected?.attributes?.className || '' ).split( /\s+/ ).some( function ( className ) {
+				if ( /^[co]-[\w-]+$/.test( className ) ) {
+					selectedBlockClass = className;
+					return true;
+				}
+				return false;
+			} );
+			const signature = unique.join( ',' ) + '|' + selectedBlockClass;
 			if ( signature === previous ) {
 				return;
 			}
@@ -278,6 +345,9 @@
 		addBlockEditorTools();
 		enableKeyboardSave();
 		enableLiveClassDiscovery();
+		injectPreviewCss( window.projectOverrides.previewCss || '' );
+		schedulePreviewUpdate();
+		observePreviewTargets();
 		activeScope = $( '#project-overrides-scope' ).val() || null;
 
 		window.addEventListener( 'project-overrides-focus', function () {
@@ -287,6 +357,8 @@
 			if ( event.origin !== window.location.origin || 'project-overrides-classes' !== event.data?.type ) {
 				if ( event.origin === window.location.origin && 'project-overrides-save-result' === event.data?.type ) {
 					dirty = Boolean( event.data.failed );
+				} else if ( event.origin === window.location.origin && 'project-overrides-preview-css' === event.data?.type ) {
+					injectPreviewCss( event.data.css || '' );
 				}
 				return;
 			}
@@ -302,6 +374,10 @@
 					select.appendChild( option );
 				}
 			} );
+			selectedBlockClass = event.data.selectedClass || '';
+			$( '.project-overrides-use-selected-class' )
+				.prop( 'hidden', ! selectedBlockClass )
+				.text( selectedBlockClass ? window.projectOverrides.useBlockClass + ': .' + selectedBlockClass : window.projectOverrides.useBlockClass );
 		} );
 		if ( window.parent !== window ) {
 			window.parent.postMessage( { type: 'project-overrides-ready' }, window.location.origin );
@@ -360,7 +436,29 @@
 			$( '[data-scope-indicator]' ).text( 'Editing: ' + $( this ).find( 'option:selected' ).text() );
 			activeScope = this.value;
 			dirty = true;
+			schedulePreviewUpdate();
 		} );
+
+		$( '.project-overrides-use-selected-class' ).on( 'click', function () {
+			if ( ! selectedBlockClass ) {
+				return;
+			}
+			const select = document.getElementById( 'project-overrides-scope' );
+			if ( ! select ) {
+				return;
+			}
+			const value = 'class:' + selectedBlockClass;
+			if ( ! select.querySelector( 'option[value="' + CSS.escape( value ) + '"]' ) ) {
+				const option = document.createElement( 'option' );
+				option.value = value;
+				option.textContent = 'Block class: ' + selectedBlockClass;
+				select.appendChild( option );
+			}
+			select.value = value;
+			$( select ).trigger( 'change' );
+		} );
+
+		$( '[name="project_overrides_status"]' ).on( 'change', schedulePreviewUpdate );
 
 		$( '.project-overrides-delete' ).on( 'click', function ( event ) {
 			if ( ! window.confirm( window.projectOverrides.confirmDelete ) ) {

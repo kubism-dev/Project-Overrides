@@ -18,24 +18,35 @@ final class ExporterTest extends TestCase {
 			':root { --gap: 1rem; }',
 			array(
 				array(
-					'id'    => 18,
-					'title' => 'Contact',
-					'css'   => "@media (min-width: 40rem) {\n\t.c-form { display: grid; }\n}",
+					'id'       => 18,
+					'title'    => 'Contact',
+					'css'      => "@media (min-width: 40rem) {\n\t.c-form { display: grid; }\n}",
+					'status'   => 'temporary',
+					'reason'   => 'Marketing landing page tweak',
+					'modified' => 1767225600,
 				),
 			),
 			array(
 				array(
-					'label' => 'Pattern: Hero',
-					'css'   => '.c-hero { min-height: 80vh; }',
+					'label'  => 'Pattern: Hero',
+					'scope'  => 'pattern:42',
+					'status' => 'permanent',
+					'css'    => '.c-hero { min-height: 80vh; }',
 				),
+			),
+			array(
+				'status' => 'temporary',
+				'reason' => 'Global stopgap',
 			)
 		);
 
-		self::assertStringContainsString( '/* GLOBAL */', $export );
-		self::assertStringContainsString( '/* Page scope: body.page-id-18 */', $export );
+		self::assertStringContainsString( 'Project override: Global', $export );
+		self::assertStringContainsString( 'Scope: Page: body.page-id-18', $export );
+		self::assertStringContainsString( 'Reason: Marketing landing page tweak', $export );
 		self::assertStringContainsString( '@media (min-width: 40rem)', $export );
 		self::assertStringNotContainsString( ".page-id-18 {\n@media", $export );
-		self::assertStringContainsString( '/* Pattern: Hero */', $export );
+		self::assertStringContainsString( 'Project override: Pattern: Hero', $export );
+		self::assertStringContainsString( 'Scope: pattern:42', $export );
 		self::assertStringContainsString( '.c-hero { min-height: 80vh; }', $export );
 	}
 

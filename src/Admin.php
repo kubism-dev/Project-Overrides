@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace ProjectOverrides;
 
 use WP_Post;
+use WP_Admin_Bar;
 
 final class Admin {
 	private const CAPABILITY = 'manage_options';
@@ -26,6 +27,7 @@ final class Admin {
 	public function register(): void {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+		add_action( 'admin_bar_menu', array( $this, 'add_admin_bar_node' ), 90 );
 		add_action( 'admin_post_project_overrides_save_css', array( $this, 'save_css_page' ) );
 		add_action( 'admin_post_project_overrides_download', array( $this, 'download_export' ) );
 		add_action( 'admin_post_project_overrides_delete', array( $this, 'delete_override' ) );
@@ -83,7 +85,9 @@ final class Admin {
 				'saving'         => __( 'Saving CSS…', 'project-overrides' ),
 				'saved'          => __( 'CSS saved', 'project-overrides' ),
 				'saveError'      => __( 'CSS save failed', 'project-overrides' ),
+				'useBlockClass'  => __( 'Use selected block class', 'project-overrides' ),
 				'scopeData'      => $is_page_editor ? $this->get_editor_scope_data( $post_id ) : new \stdClass(),
+				'previewCss'     => $is_page_editor ? $this->get_editor_preview_css( $post_id ) : '',
 			)
 		);
 	}
@@ -112,6 +116,55 @@ final class Admin {
 			);
 		}
 		return $data;
+	}
+
+	private function get_editor_preview_css( int $post_id ): string {
+		if ( ! $post_id ) {
+			return '';
+		}
+
+		$parts = array();
+		if ( 'migrated' !== $this->repository->get_global_status() && '' !== trim( $this->repository->get_global_css() ) ) {
+			$parts[] = "/* Project Overrides preview: Global */\n" . trim( $this->repository->get_global_css() );
+		}
+		if ( 'migrated' !== $this->repository->get_page_status( $post_id ) && '' !== trim( $this->repository->get_page_css( $post_id ) ) ) {
+			$parts[] = "/* Project Overrides preview: Page */\n" . trim( $this->repository->get_page_css( $post_id ) );
+		}
+		$content = (string) get_post_field( 'post_content', $post_id );
+		foreach ( $this->repository->get_scoped_overrides() as $scope => $override ) {
+			$css = trim( (string) ( $override['css'] ?? '' ) );
+			if ( '' === $css || 'migrated' === ( $override['status'] ?? '' ) ) {
+				continue;
+			}
+			if ( str_starts_with( $scope, 'class:' )
+				|| ( preg_match( '/^pattern:(\d+)$/', $scope, $matches ) && preg_match( '/<!--\s+wp:block\s+{[^}]*"ref"\s*:\s*' . (int) $matches[1] . '\b/', $content ) ) ) {
+				$parts[] = '/* Project Overrides preview: ' . $scope . " */\n" . $css;
+			}
+		}
+
+		return implode( "\n\n", $parts );
+	}
+
+	public function add_admin_bar_node( WP_Admin_Bar $admin_bar ): void {
+		if ( ! current_user_can( self::CAPABILITY ) || is_admin() || ! is_page() ) {
+			return;
+		}
+
+		$post_id = (int) get_queried_object_id();
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
+
+		$admin_bar->add_node(
+			array(
+				'id'    => 'project-overrides-page-css',
+				'title' => __( 'Edit CSS override', 'project-overrides' ),
+				'href'  => admin_url( 'admin.php?page=' . self::MENU_SLUG . '&post_id=' . $post_id ),
+				'meta'  => array(
+					'title' => __( 'Open Project Overrides for this page', 'project-overrides' ),
+				),
+			)
+		);
 	}
 
 	public function render_css_page(): void {
@@ -248,12 +301,12 @@ final class Admin {
 			</form>
 
 			<div class="project-overrides__history-grid">
-				<?php $this->render_revisions( 'global', 0, $this->repository->get_global_revisions() ); ?>
+				<?php $this->render_revisions( 'global', 0, $this->repository->get_global_revisions(), '', $this->repository->get_global_css() ); ?>
 				<?php if ( $selected ) : ?>
-					<?php $this->render_revisions( 'page', $selected_id, $this->repository->get_page_revisions( $selected_id ) ); ?>
+					<?php $this->render_revisions( 'page', $selected_id, $this->repository->get_page_revisions( $selected_id ), '', $this->repository->get_page_css( $selected_id ) ); ?>
 				<?php endif; ?>
 				<?php if ( $selected_scope ) : ?>
-					<?php $this->render_revisions( 'scoped', 0, $this->repository->get_scoped_revisions( $selected_scope ), $selected_scope ); ?>
+					<?php $this->render_revisions( 'scoped', 0, $this->repository->get_scoped_revisions( $selected_scope ), $selected_scope, $this->repository->get_scoped_override( $selected_scope )['css'] ); ?>
 				<?php endif; ?>
 			</div>
 			<?php $this->render_page_table(); ?>
@@ -290,8 +343,9 @@ final class Admin {
 	 * @param int                              $post_id   Page ID for page revisions.
 	 * @param array<int, array<string, mixed>> $revisions Revisions.
 	 * @param string                           $scope     Pattern or class scope key.
+	 * @param string                           $current_css Current CSS for diff preview.
 	 */
-	private function render_revisions( string $type, int $post_id, array $revisions, string $scope = '' ): void {
+	private function render_revisions( string $type, int $post_id, array $revisions, string $scope = '', string $current_css = '' ): void {
 		if ( ! $revisions ) {
 			return;
 		}
@@ -324,6 +378,7 @@ final class Admin {
 							echo esc_html( sprintf( __( '%d lines', 'project-overrides' ), $this->repository->line_count( (string) ( $revision['css'] ?? '' ) ) ) );
 							?>
 						</span>
+						<?php $this->render_revision_diff( $current_css, (string) ( $revision['css'] ?? '' ) ); ?>
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 							<input type="hidden" name="action" value="project_overrides_rollback">
 							<input type="hidden" name="type" value="<?php echo esc_attr( $type ); ?>">
@@ -338,6 +393,44 @@ final class Admin {
 			</ul>
 		</details>
 		<?php
+	}
+
+	private function render_revision_diff( string $current_css, string $revision_css ): void {
+		$diff = $this->summarize_css_diff( $current_css, $revision_css );
+		if ( ! $diff ) {
+			return;
+		}
+		?>
+		<details class="project-overrides__diff">
+			<summary><?php esc_html_e( 'Diff', 'project-overrides' ); ?></summary>
+			<pre><?php echo esc_html( implode( "\n", $diff ) ); ?></pre>
+		</details>
+		<?php
+	}
+
+	/**
+	 * @return string[]
+	 */
+	private function summarize_css_diff( string $current_css, string $revision_css ): array {
+		$current_lines  = preg_split( '/\n/', trim( $current_css ) );
+		$revision_lines = preg_split( '/\n/', trim( $revision_css ) );
+		$current_lines  = is_array( $current_lines ) ? $current_lines : array();
+		$revision_lines = is_array( $revision_lines ) ? $revision_lines : array();
+		$removed        = array_values( array_diff( $current_lines, $revision_lines ) );
+		$added          = array_values( array_diff( $revision_lines, $current_lines ) );
+		$summary        = array();
+
+		foreach ( array_slice( $removed, 0, 8 ) as $line ) {
+			$summary[] = '- ' . $line;
+		}
+		foreach ( array_slice( $added, 0, 8 ) as $line ) {
+			$summary[] = '+ ' . $line;
+		}
+		if ( count( $removed ) + count( $added ) > count( $summary ) ) {
+			$summary[] = '…';
+		}
+
+		return $summary;
 	}
 
 	private function render_token_sidebar(): void {
@@ -391,8 +484,8 @@ final class Admin {
 		$global_visible = '' !== trim( $this->repository->get_global_css() )
 			&& ( '' === $status_filter || $status_filter === $this->repository->get_global_status() )
 			&& ( '' === $search || false !== stripos( __( 'Global CSS', 'project-overrides' ), $search ) );
-		$scope_labels = $this->get_general_scope_options();
-		$scoped       = array_filter(
+		$scope_labels   = $this->get_general_scope_options();
+		$scoped         = array_filter(
 			$this->repository->get_scoped_overrides(),
 			function ( array $override, string $scope ) use ( $scope_labels, $status_filter, $search ): bool {
 				$label = $scope_labels[ $scope ] ?? $scope;
@@ -429,6 +522,7 @@ final class Admin {
 						<td>
 							<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::MENU_SLUG ) ); ?>"><strong><?php esc_html_e( 'Global CSS', 'project-overrides' ); ?></strong></a>
 							<?php $this->render_metadata_summary( $this->repository->get_global_reason() ); ?>
+							<?php $this->render_temporary_age( $this->repository->get_global_status(), $this->repository->get_global_modified() ); ?>
 							<div class="row-actions">
 								<span class="delete">
 									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -457,6 +551,7 @@ final class Admin {
 							?>
 							</a>
 							<?php $this->render_metadata_summary( $this->repository->get_page_reason( (int) $page->ID ) ); ?>
+							<?php $this->render_temporary_age( $status, $modified ); ?>
 							<div class="row-actions">
 								<span><a href="<?php echo esc_url( get_edit_post_link( $page->ID ) ); ?>"><?php esc_html_e( 'Edit page', 'project-overrides' ); ?></a> | </span>
 								<?php
@@ -482,8 +577,22 @@ final class Admin {
 				<?php foreach ( $scoped as $scope => $override ) : ?>
 					<tr>
 						<td>
-							<a href="<?php echo esc_url( add_query_arg( array( 'page' => self::MENU_SLUG, 'scope' => $scope ), admin_url( 'admin.php' ) ) ); ?>"><strong><?php echo esc_html( $scope_labels[ $scope ] ?? $scope ); ?></strong></a>
+							<a href="
+							<?php
+							echo esc_url(
+								add_query_arg(
+									array(
+										'page'  => self::MENU_SLUG,
+										'scope' => $scope,
+									),
+									admin_url( 'admin.php' )
+								)
+							);
+							?>
+										"><strong><?php echo esc_html( $scope_labels[ $scope ] ?? $scope ); ?></strong></a>
 							<?php $this->render_metadata_summary( (string) ( $override['reason'] ?? '' ) ); ?>
+							<?php $this->render_temporary_age( $this->repository->sanitize_status( (string) ( $override['status'] ?? '' ) ), (int) ( $override['modified'] ?? 0 ) ); ?>
+							<?php $this->render_orphan_note( $scope ); ?>
 							<div class="row-actions">
 								<span class="delete">
 									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -531,6 +640,51 @@ final class Admin {
 		<?php
 	}
 
+	private function render_temporary_age( string $status, int $modified ): void {
+		if ( 'temporary' !== $status || ! $modified ) {
+			return;
+		}
+		$days = max( 0, (int) floor( ( time() - $modified ) / DAY_IN_SECONDS ) );
+		?>
+		<div class="description project-overrides__age">
+			<?php
+			printf(
+				/* translators: %d: Number of days. */
+				esc_html( _n( 'Temporary for %d day.', 'Temporary for %d days.', $days, 'project-overrides' ) ),
+				esc_html( (string) $days )
+			);
+			?>
+		</div>
+		<?php
+	}
+
+	private function render_orphan_note( string $scope ): void {
+		$note = $this->get_orphan_note( $scope );
+		if ( '' === $note ) {
+			return;
+		}
+		printf( '<div class="description project-overrides__warning">%s</div>', esc_html( $note ) );
+	}
+
+	private function get_orphan_note( string $scope ): string {
+		if ( preg_match( '/^pattern:(\d+)$/', $scope, $matches ) ) {
+			$pattern = get_post( (int) $matches[1] );
+			if ( ! $pattern instanceof WP_Post || 'wp_block' !== $pattern->post_type ) {
+				return __( 'Orphan: synced pattern no longer exists.', 'project-overrides' );
+			}
+			if ( ! $this->get_pages_using_pattern( (int) $matches[1] ) ) {
+				return __( 'Unused: no editable page currently references this synced pattern.', 'project-overrides' );
+			}
+		}
+		if ( str_starts_with( $scope, 'class:' ) ) {
+			$class_name = substr( $scope, 6 );
+			if ( ! in_array( $class_name, $this->class_names->get(), true ) ) {
+				return __( 'Unlisted: class is not in the configured BEM class source.', 'project-overrides' );
+			}
+		}
+		return '';
+	}
+
 	public function save_css_page(): void {
 		$this->guard();
 		check_admin_referer( 'project_overrides_save_css' );
@@ -571,13 +725,13 @@ final class Admin {
 					'page_css'      => (string) $page_css,
 					'page_status'   => $page_status,
 					'global_reason' => $global_reason,
-						'page_reason'   => $page_reason,
-						'scoped_key'    => $scoped_key,
-						'scoped_css'    => (string) $scoped_css,
-						'scoped_status' => $scoped_status,
-						'scoped_reason' => $scoped_reason,
-					)
-				);
+					'page_reason'   => $page_reason,
+					'scoped_key'    => $scoped_key,
+					'scoped_css'    => (string) $scoped_css,
+					'scoped_status' => $scoped_status,
+					'scoped_reason' => $scoped_reason,
+				)
+			);
 				$this->redirect_to_css_page( $post_id, $scoped_key );
 		}
 
@@ -665,8 +819,8 @@ final class Admin {
 
 	public function render_export_page(): void {
 		$this->guard();
-		$export = $this->build_export();
-		$pages  = array_filter(
+		$export       = $this->build_export();
+		$pages        = array_filter(
 			$this->repository->get_pages_with_overrides(),
 			static fn( WP_Post $page ): bool => current_user_can( 'edit_post', (int) $page->ID )
 		);
@@ -713,7 +867,7 @@ final class Admin {
 	 * @param string[]|null $selected Selection keys, or null for all.
 	 */
 	private function build_export( ?array $selected = null ): string {
-		$pages = array();
+		$pages  = array();
 		$scopes = array();
 		foreach ( $this->repository->get_pages_with_overrides() as $page ) {
 			if ( ! current_user_can( 'edit_post', (int) $page->ID ) ) {
@@ -723,24 +877,36 @@ final class Admin {
 				continue;
 			}
 			$pages[] = array(
-				'id'    => (int) $page->ID,
-				'title' => get_the_title( $page ) ? get_the_title( $page ) : __( 'Untitled', 'project-overrides' ),
-				'css'   => $this->repository->get_page_css( (int) $page->ID ),
+				'id'       => (int) $page->ID,
+				'title'    => get_the_title( $page ) ? get_the_title( $page ) : __( 'Untitled', 'project-overrides' ),
+				'css'      => $this->repository->get_page_css( (int) $page->ID ),
+				'status'   => $this->repository->get_page_status( (int) $page->ID ),
+				'reason'   => $this->repository->get_page_reason( (int) $page->ID ),
+				'modified' => $this->repository->get_page_modified( (int) $page->ID ),
 			);
 		}
 
-		$global = null === $selected || in_array( 'global', $selected, true ) ? $this->repository->get_global_css() : '';
+		$global       = null === $selected || in_array( 'global', $selected, true ) ? $this->repository->get_global_css() : '';
+		$global_meta  = array(
+			'status'   => $this->repository->get_global_status(),
+			'reason'   => $this->repository->get_global_reason(),
+			'modified' => $this->repository->get_global_modified(),
+		);
 		$scope_labels = $this->get_general_scope_options();
 		foreach ( $this->repository->get_scoped_overrides() as $scope => $override ) {
 			if ( null !== $selected && ! in_array( 'scope:' . $scope, $selected, true ) ) {
 				continue;
 			}
 			$scopes[] = array(
-				'label' => $scope_labels[ $scope ] ?? $scope,
-				'css'   => (string) ( $override['css'] ?? '' ),
+				'label'    => $scope_labels[ $scope ] ?? $scope,
+				'css'      => (string) ( $override['css'] ?? '' ),
+				'scope'    => $scope,
+				'status'   => $this->repository->sanitize_status( (string) ( $override['status'] ?? 'temporary' ) ),
+				'reason'   => (string) ( $override['reason'] ?? '' ),
+				'modified' => (int) ( $override['modified'] ?? 0 ),
 			);
 		}
-		return $this->exporter->build( $global, $pages, $scopes );
+		return $this->exporter->build( $global, $pages, $scopes, $global_meta );
 	}
 
 	public function download_export(): void {
@@ -992,6 +1158,7 @@ final class Admin {
 					<option value="class:<?php echo esc_attr( $class_name ); ?>" <?php selected( $scope, 'class:' . $class_name ); ?>><?php echo esc_html( 'Block class: ' . $class_name ); ?></option>
 				<?php endforeach; ?>
 			</select>
+			<button type="button" class="button button-small project-overrides-use-selected-class" hidden><?php esc_html_e( 'Use selected block class', 'project-overrides' ); ?></button>
 		</p>
 		<p class="description"><?php esc_html_e( 'Global CSS loads everywhere. Page CSS loads here. Pattern scopes require a synced pattern; block-class CSS is limited by its selector.', 'project-overrides' ); ?></p>
 		<div class="project-overrides-scope-indicator" data-scope-indicator><?php echo esc_html( 'Editing: ' . $this->scope_label( $scope, (int) $post->ID ) ); ?></div>
@@ -1015,10 +1182,10 @@ final class Admin {
 			return;
 		}
 
-		$scope    = isset( $_POST['project_overrides_scope'] ) ? sanitize_text_field( wp_unslash( $_POST['project_overrides_scope'] ) ) : 'page';
-		$css      = (string) wp_unslash( $_POST['project_overrides_css'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- CSS must retain its syntax.
-		$status   = isset( $_POST['project_overrides_status'] ) ? sanitize_key( wp_unslash( $_POST['project_overrides_status'] ) ) : 'temporary';
-		$reason   = isset( $_POST['project_overrides_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['project_overrides_reason'] ) ) : '';
+		$scope  = isset( $_POST['project_overrides_scope'] ) ? sanitize_text_field( wp_unslash( $_POST['project_overrides_scope'] ) ) : 'page';
+		$css    = (string) wp_unslash( $_POST['project_overrides_css'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- CSS must retain its syntax.
+		$status = isset( $_POST['project_overrides_status'] ) ? sanitize_key( wp_unslash( $_POST['project_overrides_status'] ) ) : 'temporary';
+		$reason = isset( $_POST['project_overrides_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['project_overrides_reason'] ) ) : '';
 		if ( 'global' === $scope ) {
 			$result = $this->repository->save_global( $css, $status, null, $reason );
 		} elseif ( 'page' === $scope ) {
@@ -1095,8 +1262,9 @@ final class Admin {
 		$classes = array();
 		$walk    = static function ( array $blocks ) use ( &$walk, &$classes ): void {
 			foreach ( $blocks as $block ) {
-				$class_name = (string) ( $block['attrs']['className'] ?? '' );
-				foreach ( preg_split( '/\s+/', $class_name ) ?: array() as $class ) {
+				$class_name  = (string) ( $block['attrs']['className'] ?? '' );
+				$class_parts = preg_split( '/\s+/', $class_name );
+				foreach ( is_array( $class_parts ) ? $class_parts : array() as $class ) {
 					if ( preg_match( '/^[co]-[A-Za-z0-9_-]+$/', $class ) ) {
 						$classes[] = $class;
 					}

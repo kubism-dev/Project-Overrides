@@ -3,7 +3,7 @@ Contributors: projectoverrides
 Tags: css, developer, gutenberg, theme, overrides
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.3.0
+Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,7 +17,7 @@ theme:
 * Global, page, synced-pattern, and block-class scopes.
 * Native WordPress CodeMirror editing.
 * theme.json presets and optional BEM class autocomplete.
-* Status tracking, revisions, and CSS export.
+* Status tracking, revision diffs, editor preview, and CSS export.
 
 Only administrators can edit overrides.
 
@@ -45,6 +45,9 @@ Run `composer lint` and `composer test` before packaging. On Windows,
 only.
 
 == Changelog ==
+
+= 1.4.0 =
+* Added an admin-bar page shortcut, editor preview CSS, selected-block class helper, temporary age notes, orphan warnings, and richer export headers.
 
 = 1.3.0 =
 * Completed revision, inventory, export, migration, and deletion support for every scope.
