@@ -22,6 +22,12 @@ final class ExporterTest extends TestCase {
 					'title' => 'Contact',
 					'css'   => "@media (min-width: 40rem) {\n\t.c-form { display: grid; }\n}",
 				),
+			),
+			array(
+				array(
+					'label' => 'Pattern: Hero',
+					'css'   => '.c-hero { min-height: 80vh; }',
+				),
 			)
 		);
 
@@ -29,6 +35,8 @@ final class ExporterTest extends TestCase {
 		self::assertStringContainsString( '/* Page scope: body.page-id-18 */', $export );
 		self::assertStringContainsString( '@media (min-width: 40rem)', $export );
 		self::assertStringNotContainsString( ".page-id-18 {\n@media", $export );
+		self::assertStringContainsString( '/* Pattern: Hero */', $export );
+		self::assertStringContainsString( '.c-hero { min-height: 80vh; }', $export );
 	}
 
 	public function test_neutralizes_comment_termination_in_page_titles(): void {

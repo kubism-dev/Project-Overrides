@@ -128,39 +128,184 @@
 		} );
 	}
 
-	function addBlockEditorSaveButton() {
+	function syncEditors() {
+		editors.forEach( function ( editor ) {
+			editor.save();
+			editor.getTextArea().dispatchEvent( new Event( 'input', { bubbles: true } ) );
+		} );
+	}
+
+	function editorData() {
+		if ( window.wp?.data ) {
+			return window.wp.data;
+		}
+		if ( window.parent !== window && window.parent.wp?.data ) {
+			return window.parent.wp.data;
+		}
+		return null;
+	}
+
+	function focusCssEditor() {
+		const localEditor = editors.get( 'project-overrides-meta-css' );
+		if ( localEditor ) {
+			localEditor.focus();
+			localEditor.scrollIntoView();
+			return true;
+		}
+
+		for ( const frame of document.querySelectorAll( 'iframe' ) ) {
+			try {
+				if ( frame.contentDocument?.querySelector( '#project-overrides-meta-css' ) ) {
+					frame.scrollIntoView( { behavior: 'smooth', block: 'center' } );
+					frame.contentWindow.dispatchEvent( new Event( 'project-overrides-focus' ) );
+					return true;
+				}
+			} catch ( error ) {
+				// Ignore unrelated cross-origin frames.
+			}
+		}
+		return false;
+	}
+
+	function addBlockEditorTools() {
 		if ( ! document.body.classList.contains( 'block-editor-page' ) || ! window.wp?.data ) {
 			return;
 		}
 
 		const insertButton = function () {
 			const publishButton = document.querySelector( '.editor-post-publish-button, .editor-post-publish-button__button, .editor-post-save-draft' );
-			if ( ! publishButton || document.querySelector( '.project-overrides-save-css' ) ) {
+			if ( ! publishButton || document.querySelector( '.project-overrides-open-css' ) ) {
 				return;
 			}
 
 			const button = document.createElement( 'button' );
 			button.type = 'button';
-			button.className = 'components-button is-secondary project-overrides-save-css';
-			button.textContent = window.projectOverrides.saveCss;
-			button.addEventListener( 'click', function () {
-				editors.forEach( function ( editor ) {
-					editor.save();
-					editor.getTextArea().dispatchEvent( new Event( 'input', { bubbles: true } ) );
-				} );
-				wp.data.dispatch( 'core/editor' ).savePost();
-			} );
+			button.className = 'components-button is-secondary project-overrides-open-css';
+			button.textContent = window.projectOverrides.openCss;
+			button.addEventListener( 'click', focusCssEditor );
+
+			const status = document.createElement( 'span' );
+			status.className = 'project-overrides-save-status';
+			status.setAttribute( 'aria-live', 'polite' );
 			publishButton.parentNode.insertBefore( button, publishButton );
+			publishButton.parentNode.insertBefore( status, publishButton );
 		};
 
 		insertButton();
 		new MutationObserver( insertButton ).observe( document.body, { childList: true, subtree: true } );
+
+		let wasSaving = false;
+		wp.data.subscribe( function () {
+			const selector = wp.data.select( 'core/editor' );
+			const saving = selector.isSavingPost() && ! selector.isAutosavingPost();
+			const status = document.querySelector( '.project-overrides-save-status' );
+			if ( ! status ) {
+				return;
+			}
+			if ( saving ) {
+				status.textContent = window.projectOverrides.saving;
+			} else if ( wasSaving ) {
+				const failed = typeof selector.didPostSaveRequestFail === 'function' && selector.didPostSaveRequestFail();
+				status.textContent = failed ? window.projectOverrides.saveError : window.projectOverrides.saved;
+				status.classList.toggle( 'is-error', failed );
+				dirty = failed;
+				document.querySelectorAll( 'iframe' ).forEach( function ( frame ) {
+					frame.contentWindow?.postMessage( { type: 'project-overrides-save-result', failed }, window.location.origin );
+				} );
+			}
+			wasSaving = saving;
+		} );
+	}
+
+	function enableKeyboardSave() {
+		document.addEventListener( 'keydown', function ( event ) {
+			if ( ! ( event.metaKey || event.ctrlKey ) || 's' !== event.key.toLowerCase() ) {
+				return;
+			}
+			const data = editorData();
+			if ( ! data || ( ! document.querySelector( '.project-overrides-editor' ) && ! document.body.classList.contains( 'block-editor-page' ) ) ) {
+				return;
+			}
+			event.preventDefault();
+			syncEditors();
+			data.dispatch( 'core/editor' ).savePost();
+		} );
+	}
+
+	function enableLiveClassDiscovery() {
+		if ( ! document.body.classList.contains( 'block-editor-page' ) || ! window.wp?.data ) {
+			return;
+		}
+		let previous = '';
+		let discovered = [];
+		const sendClasses = function () {
+			document.querySelectorAll( 'iframe' ).forEach( function ( frame ) {
+				frame.contentWindow?.postMessage( { type: 'project-overrides-classes', classes: discovered }, window.location.origin );
+			} );
+		};
+		window.addEventListener( 'message', function ( event ) {
+			if ( event.origin === window.location.origin && 'project-overrides-ready' === event.data?.type ) {
+				sendClasses();
+			}
+		} );
+		wp.data.subscribe( function () {
+			const blocks = wp.data.select( 'core/block-editor' )?.getBlocks() || [];
+			const classes = [];
+			const walk = function ( items ) {
+				items.forEach( function ( block ) {
+					String( block.attributes?.className || '' ).split( /\s+/ ).forEach( function ( className ) {
+						if ( /^[co]-[\w-]+$/.test( className ) ) {
+							classes.push( className );
+						}
+					} );
+					walk( block.innerBlocks || [] );
+				} );
+			};
+			walk( blocks );
+			const unique = [ ...new Set( classes ) ].sort();
+			const signature = unique.join( ',' );
+			if ( signature === previous ) {
+				return;
+			}
+			previous = signature;
+			discovered = unique;
+			sendClasses();
+		} );
 	}
 
 	$( function () {
 		initializeEditors();
-		addBlockEditorSaveButton();
+		addBlockEditorTools();
+		enableKeyboardSave();
+		enableLiveClassDiscovery();
 		activeScope = $( '#project-overrides-scope' ).val() || null;
+
+		window.addEventListener( 'project-overrides-focus', function () {
+			focusCssEditor();
+		} );
+		window.addEventListener( 'message', function ( event ) {
+			if ( event.origin !== window.location.origin || 'project-overrides-classes' !== event.data?.type ) {
+				if ( event.origin === window.location.origin && 'project-overrides-save-result' === event.data?.type ) {
+					dirty = Boolean( event.data.failed );
+				}
+				return;
+			}
+			const select = document.getElementById( 'project-overrides-scope' );
+			( event.data.classes || [] ).forEach( function ( className ) {
+				if ( ! window.projectOverrides.classNames.includes( className ) ) {
+					window.projectOverrides.classNames.push( className );
+				}
+				if ( select && ! select.querySelector( 'option[value="class:' + CSS.escape( className ) + '"]' ) ) {
+					const option = document.createElement( 'option' );
+					option.value = 'class:' + className;
+					option.textContent = 'Block class: ' + className;
+					select.appendChild( option );
+				}
+			} );
+		} );
+		if ( window.parent !== window ) {
+			window.parent.postMessage( { type: 'project-overrides-ready' }, window.location.origin );
+		}
 
 		$( '.project-overrides-page-select' ).on( 'change', function () {
 			const base = $( this ).data( 'base-url' );
@@ -212,6 +357,7 @@
 			}
 			$( '[name="project_overrides_status"]' ).val( data.status );
 			$( '[name="project_overrides_reason"]' ).val( data.reason );
+			$( '[data-scope-indicator]' ).text( 'Editing: ' + $( this ).find( 'option:selected' ).text() );
 			activeScope = this.value;
 			dirty = true;
 		} );

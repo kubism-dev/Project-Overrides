@@ -196,7 +196,7 @@ final class Repository {
 	}
 
 	/**
-	 * @return array<string, array{css:string,status:string,reason:string,modified:int}>
+	 * @return array<string, array<string, mixed>>
 	 */
 	public function get_scoped_overrides(): array {
 		$overrides = get_option( self::SCOPED_OPTION, array() );
@@ -204,17 +204,25 @@ final class Repository {
 	}
 
 	/**
-	 * @return array{css:string,status:string,reason:string,modified:int}
+	 * @return array{css:string,status:string,reason:string,modified:int,revisions:array<int, array<string, mixed>>}
 	 */
 	public function get_scoped_override( string $scope ): array {
 		$overrides = $this->get_scoped_overrides();
 		$override  = $overrides[ $scope ] ?? array();
 		return array(
-			'css'      => (string) ( $override['css'] ?? '' ),
-			'status'   => $this->sanitize_status( (string) ( $override['status'] ?? 'temporary' ) ),
-			'reason'   => (string) ( $override['reason'] ?? '' ),
-			'modified' => (int) ( $override['modified'] ?? 0 ),
+			'css'       => (string) ( $override['css'] ?? '' ),
+			'status'    => $this->sanitize_status( (string) ( $override['status'] ?? 'temporary' ) ),
+			'reason'    => (string) ( $override['reason'] ?? '' ),
+			'modified'  => (int) ( $override['modified'] ?? 0 ),
+			'revisions' => isset( $override['revisions'] ) && is_array( $override['revisions'] ) ? $override['revisions'] : array(),
 		);
+	}
+
+	/**
+	 * @return array<int, array<string, mixed>>
+	 */
+	public function get_scoped_revisions( string $scope ): array {
+		return $this->get_scoped_override( $scope )['revisions'];
 	}
 
 	/**
@@ -231,19 +239,48 @@ final class Repository {
 		}
 
 		$overrides = $this->get_scoped_overrides();
+		$current   = $this->get_scoped_override( $scope );
 		$css       = $this->sanitize_css( $css );
+		$status    = $this->sanitize_status( $status );
+		$reason    = sanitize_text_field( $reason );
+		$revisions = $current['revisions'];
+		if ( '' !== trim( $current['css'] )
+			&& ( $css !== $current['css'] || $status !== $current['status'] || $reason !== $current['reason'] ) ) {
+			$revisions = $this->prepend_revision(
+				$revisions,
+				$this->revision_snapshot( $current['css'], $current['status'], $current['reason'], $current['modified'] )
+			);
+		}
 		if ( '' === trim( $css ) ) {
 			unset( $overrides[ $scope ] );
 		} else {
 			$overrides[ $scope ] = array(
-				'css'      => $css,
-				'status'   => $this->sanitize_status( $status ),
-				'reason'   => sanitize_text_field( $reason ),
-				'modified' => time(),
+				'css'       => $css,
+				'status'    => $status,
+				'reason'    => $reason,
+				'modified'  => time(),
+				'revisions' => $revisions,
 			);
 		}
 		update_option( self::SCOPED_OPTION, $overrides, false );
 		return true;
+	}
+
+	/**
+	 * @return true|WP_Error
+	 */
+	public function rollback_scoped( string $scope, string $revision_id ) {
+		foreach ( $this->get_scoped_revisions( $scope ) as $revision ) {
+			if ( isset( $revision['id'] ) && hash_equals( (string) $revision['id'], $revision_id ) ) {
+				return $this->save_scoped_override(
+					$scope,
+					(string) ( $revision['css'] ?? '' ),
+					(string) ( $revision['status'] ?? 'temporary' ),
+					(string) ( $revision['reason'] ?? '' )
+				);
+			}
+		}
+		return new WP_Error( 'invalid_revision', __( 'The selected revision no longer exists.', 'project-overrides' ) );
 	}
 
 	/**

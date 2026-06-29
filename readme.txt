@@ -3,7 +3,7 @@ Contributors: projectoverrides
 Tags: css, developer, gutenberg, theme, overrides
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.2.0
+Stable tag: 1.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -11,26 +11,15 @@ A focused developer utility for temporary global and page-specific CSS overrides
 
 == Description ==
 
-Project Overrides gives WordPress agencies a controlled place for project CSS
-that is not ready to migrate into a custom theme. It provides:
+Project Overrides is a small place for CSS that is not ready to move into the
+theme:
 
-* Global and per-page CSS using the native WordPress CodeMirror editor.
-* Temporary and permanent status tracking.
-* A dashboard reminder for temporary overrides.
-* A combined copyable and downloadable CSS export.
-* Click-to-insert theme.json preset variables.
-* Optional BEM class autocomplete from a theme JSON file or PHP filter.
-* Revision history with rollback.
-* Reason and handoff notes.
-* Selective migration export and inactive migrated status.
+* Global, page, synced-pattern, and block-class scopes.
+* Native WordPress CodeMirror editing.
+* theme.json presets and optional BEM class autocomplete.
+* Status tracking, revisions, and CSS export.
 
-Only administrators can edit overrides. The plugin does not execute PHP or
-JavaScript. Context-breaking markup and legacy executable CSS constructs are
-rejected with an error while preserving the submitted draft.
-
-Existing overrides keep their latest 20 revisions. A restored revision also
-preserves the version it replaces. Migrated overrides remain available for
-review and rollback but are not output on the front end.
+Only administrators can edit overrides.
 
 == BEM autocomplete ==
 
@@ -56,6 +45,10 @@ Run `composer lint` and `composer test` before packaging. On Windows,
 only.
 
 == Changelog ==
+
+= 1.3.0 =
+* Completed revision, inventory, export, migration, and deletion support for every scope.
+* Added Gutenberg focus/save tools, previews, class discovery, and diagnostics.
 
 = 1.2.0 =
 * Added global, page, synced-pattern, and block-class editor scopes.

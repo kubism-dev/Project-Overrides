@@ -102,6 +102,19 @@ final class RepositoryTest extends TestCase {
 		self::assertSame( 'permanent', $overrides['class:c-card']['status'] );
 	}
 
+	public function test_scoped_override_revisions_are_bounded_and_restorable(): void {
+		$this->repository->save_scoped_override( 'class:c-card', '.c-card { color: red; }', 'temporary', 'Original' );
+		for ( $index = 0; $index < 23; ++$index ) {
+			$this->repository->save_scoped_override( 'class:c-card', ".c-card { order: {$index}; }", 'temporary' );
+		}
+
+		$revisions = $this->repository->get_scoped_revisions( 'class:c-card' );
+		self::assertCount( 20, $revisions );
+		$revision = $revisions[ count( $revisions ) - 1 ];
+		$this->repository->rollback_scoped( 'class:c-card', (string) $revision['id'] );
+		self::assertSame( (string) $revision['css'], $this->repository->get_scoped_override( 'class:c-card' )['css'] );
+	}
+
 	public function test_rejects_invalid_scoped_override_keys(): void {
 		self::assertInstanceOf(
 			WP_Error::class,

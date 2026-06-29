@@ -306,8 +306,42 @@
 	width: 100%;
 }
 
-.project-overrides-save-css {
+.project-overrides-open-css {
 	margin-right: 8px;
+}
+
+.project-overrides-save-status {
+	color: #757575;
+	font-size: 12px;
+	margin-right: 8px;
+	white-space: nowrap;
+}
+
+.project-overrides-save-status.is-error {
+	color: #b32d2e;
+}
+
+.project-overrides-scope-indicator {
+	background: #f0f6fc;
+	border-left: 3px solid #2271b1;
+	font-weight: 600;
+	margin: 12px 0 8px;
+	padding: 8px 10px;
+}
+
+.project-overrides-diagnostics {
+	align-items: center;
+	background: #f6f7f7;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 12px;
+	margin-top: 12px;
+	padding: 10px 12px;
+}
+
+.project-overrides-diagnostics span,
+.project-overrides-diagnostics a {
+	font-size: 12px;
 }
 
 .CodeMirror-hints {
